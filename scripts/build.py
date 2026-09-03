@@ -1155,9 +1155,10 @@ import datetime as _dt
 _STAMP='build '+_dt.datetime.now().strftime('%d %b %H:%M')
 rep("""  { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }""",
     """  { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
-  // print the build stamp where anyone can check it: console, and the title bar
-  try{ console.log('DrawingMaster \u2014 """+_STAMP+"""');
-       document.title='Drawing Master \u00b7 """+_STAMP+"""'; }catch(e){}""")
+  // The build stamp, somewhere it can be checked without being in the way: the
+  // console, and window.__build. The tab says the name of the program, nothing else.
+  try{ window.__build='"""+_STAMP+"""';
+       console.log('DrawingMaster \u2014 """+_STAMP+"""'); }catch(e){}""")
 
 # ---- STORAGE: stop saving what can be rebuilt ------------------------------
 # 56% of every saved project was the object list, which is built FROM the drawing

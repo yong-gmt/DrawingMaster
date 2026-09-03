@@ -15328,9 +15328,10 @@ function boot(){
   $('#btnImport').onclick=importDXF;
   { const b=$('#btnStylize'); if(b) b.onclick=stylizeANSI; }                 // real DXF import (rpClose/rpSave handled by openTitlePanel)
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
-  // print the build stamp where anyone can check it: console, and the title bar
-  try{ console.log('DrawingMaster — build 03 Sep 17:54');
-       document.title='Drawing Master · build 03 Sep 17:54'; }catch(e){}
+  // The build stamp, somewhere it can be checked without being in the way: the
+  // console, and window.__build. The tab says the name of the program, nothing else.
+  try{ window.__build='build 03 Sep 18:08';
+       console.log('DrawingMaster — build 03 Sep 18:08'); }catch(e){}
   { const bb=$('#btnBalloon'); if(bb) bb.onclick=addBalloon; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }
