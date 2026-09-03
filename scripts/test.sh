@@ -23,9 +23,16 @@ for a in "$@"; do
   esac
 done
 
+# python3 on macOS and Linux, python on Windows - the suite should not stop at
+# the name of the interpreter.
+# (asking whether python3 EXISTS is not enough on Windows: there is a stub of that
+#  name whose only job is to advertise the Microsoft Store. Ask it to run something.)
+PY=python3; $PY -c "" >/dev/null 2>&1 || PY=python
+export PYTHONUTF8=1
+
 echo "building..."
-python3 scripts/build.py || { echo "BUILD FAILED - nothing was tested"; exit 1; }
-python3 scripts/artwork.py || { echo "ARTWORK PATCH FAILED"; exit 1; }
+$PY scripts/build.py || { echo "BUILD FAILED - nothing was tested"; exit 1; }
+$PY scripts/artwork.py || { echo "ARTWORK PATCH FAILED"; exit 1; }
 echo
 
 ran=0; failed=0; failures=""

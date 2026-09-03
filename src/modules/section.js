@@ -535,15 +535,19 @@ function bakeOffsets(pg){
     n++;
   });
   if(!n) return 0;
-  /* solids live in the drawing's own array, so move them there */
-  const moved=new Map();
+  const d=pg.dxf||{};
+  /* A filled shape and a centre mark are plain ARRAYS, and the drawing and the
+     object list hold the same array - not a copy of it. So they are moved in
+     place. Writing a new array into d.solids instead left the object still
+     holding the old one: the arrowhead on screen jumped back to where it started
+     the moment anything redrew, and its tags had to be copied across by hand. */
   objs.forEach(o=>{ const dx=o.dx||0, dy=o.dy||0;
     if(!dx && !dy) return;
-    (o.prims.solids||[]).forEach(sd=>moved.set(sd,[dx,dy])); });
-  const d=pg.dxf||{};
-  (d.solids||[]).forEach((sd,i)=>{ const m=moved.get(sd); if(!m) return;
-    const nn=sd.map(q=>[q[0]+m[0], q[1]+m[1]]);
-    nn._dim=sd._dim||null; nn._sec=sd._sec||null; nn._section=sd._section; d.solids[i]=nn; });
+    (o.prims.solids||[]).forEach(sd=>{ if(sd._baked) return; sd._baked=1;
+      sd.forEach(q=>{ q[0]+=dx; q[1]+=dy; }); });
+    (o.prims.marks||[]).forEach(mk=>{ if(mk._baked) return; mk._baked=1;
+      mk[0]+=dx; mk[1]+=dy; });
+  });
   /* and the models, so a redraw puts them where the strokes now are */
   const shift=(id, list, fn)=>{
     (list||[]).forEach(mm=>{
@@ -559,10 +563,12 @@ function bakeOffsets(pg){
   shift('_bal', d.balloons, (m,dx,dy)=>{ m.c=[m.c[0]+dx,m.c[1]+dy];
                                           m.tip=[m.tip[0]+dx,m.tip[1]+dy]; });
   objs.forEach(o=>{ o.dx=0; o.dy=0; });
-  (d.polys||[]).forEach(p=>{ delete p._baked; });
-  (d.texts||[]).forEach(t=>{ delete t._baked; });
-  (d.hatches||[]).forEach(h=>{ delete h._baked; });
-  (d.clines||[]).forEach(c=>{ delete c._baked; });
+  /* Clear the marks from the pieces themselves, not from the drawing's lists: a
+     piece the object list carries but d.polys does not - one added since the last
+     rebuild - would keep its _baked flag for ever and never move again. */
+  objs.forEach(o=>{ const P=o.prims||{};
+    ['polys','texts','hatches','clines','solids','marks'].forEach(k=>
+      (P[k]||[]).forEach(x=>{ if(x&&x._baked) delete x._baked; })); });
   return n;
 }
 function secReport(){

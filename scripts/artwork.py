@@ -9,7 +9,7 @@ how the last three attempts turned into syntax errors instead of code.
 import os, re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BUILD = os.path.join(ROOT, 'build', 'DrawingMaster.html')
+BUILD = os.path.join(ROOT, 'drawing-master', 'DrawingMaster.html')
 
 def rep(s, old, new, n=1):
     assert s.count(old) == n, (s.count(old), old[:70])
@@ -112,6 +112,7 @@ def main():
 
     open(BUILD, 'w', encoding='utf-8').write(s)
     print('title-block artwork and slider colour applied')
+
 
 if __name__ == '__main__':
     main()

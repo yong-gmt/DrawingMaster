@@ -24,7 +24,7 @@ Build and open:
 ```bash
 python3 scripts/build.py       # assemble the single file
 python3 scripts/artwork.py     # then embed the title-block artwork
-open build/DrawingMaster.html  # or xdg-open / start
+open drawing-master/DrawingMaster.html   # or xdg-open / start
 ```
 
 Run the tests:
@@ -42,7 +42,7 @@ bash scripts/test.sh      # the whole app through a real browser — minutes
 src/base.html          the app before patching
 src/lib/*.mjs          real components: pure, exported, unit-tested
 src/modules/*.js       code that still lives in the app's global scope
-scripts/build.py       assembles them into build/DrawingMaster.html
+scripts/build.py       assembles them into drawing-master/DrawingMaster.html
 tests/                 Playwright tests, one file per behaviour
 fixtures/drawings/     real DXF files from two different CAD programs
 fixtures/synthetic/    files generated to test one thing each

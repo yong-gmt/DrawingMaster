@@ -39,7 +39,7 @@ bash scripts/test.sh -q         # เอาเฉพาะที่พัง
 const {open, loadDxf} = require('./harness');
 (async()=>{
   for(const dxf of ['Head-back.dxf','Body_Demo_Drawing_Sheet1.dxf','Body_Demo_Drawing_Sheet3.dxf']){
-    const {b, pg} = await open('build/DrawingMaster.html');
+    const {b, pg} = await open('drawing-master/DrawingMaster.html');
     await loadDxf(pg, dxf);
     await pg.evaluate(()=>document.querySelector('#btnStylize').click());
     const r = await pg.evaluate(()=>{

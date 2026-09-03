@@ -9,7 +9,7 @@ The app ships as **one HTML file**. It is produced by applying `scripts/build.py
 to `src/base.html`:
 
 ```bash
-python3 scripts/build.py            # -> build/DrawingMaster.html
+python3 scripts/build.py            # -> drawing-master/DrawingMaster.html
 python3 scripts/artwork.py          # then embeds the title-block artwork
 ```
 
@@ -22,7 +22,8 @@ it never half-applies.
 not be split at the time. See `docs/ROADMAP.md` for the plan to break `base.html`
 into real modules. Until then:
 
-- Never edit `build/DrawingMaster.html` directly — it is overwritten.
+- Never edit `drawing-master/DrawingMaster.html` directly — it is the build
+  output and is overwritten. It is the file to OPEN, not the file to edit.
 - Edit `src/modules/*.js` for module code, or add a `rep()` in `scripts/build.py`
   for changes inside `base.html`.
 - After every change, run the build and then the tests.

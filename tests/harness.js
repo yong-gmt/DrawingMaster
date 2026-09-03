@@ -9,10 +9,10 @@ const fs=require('fs'), path=require('path');
 const ROOT = path.resolve(__dirname, '..');
 /* a test can point at another build to compare against - useful for asking
    "was this broken before my change?" without editing every test */
-const APP  = process.env.DM_APP || path.join(ROOT, 'build', 'DrawingMaster.html');
+const APP  = process.env.DM_APP || path.join(ROOT, 'drawing-master', 'DrawingMaster.html');
 /* Tests name a drawing; the harness knows where drawings are kept. */
 function fixture(name){
-  for(const dir of ['fixtures/drawings','fixtures/synthetic','build','.']){
+  for(const dir of ['fixtures/drawings','fixtures/synthetic','drawing-master','.']){
     const p=path.join(ROOT, dir, name);
     if(fs.existsSync(p)) return p;
   }

@@ -1,6 +1,6 @@
 # สรุปสถานะปัจจุบัน
 
-ไฟล์ที่ใช้งาน: **`build/DrawingMaster.html`** (ประกอบด้วย `scripts/build.py` แล้วตามด้วย `scripts/artwork.py`)
+ไฟล์ที่ใช้งาน: **`drawing-master/DrawingMaster.html`** (ประกอบด้วย `scripts/build.py` แล้วตามด้วย `scripts/artwork.py`)
 ชื่อแท็บจะบอก build stamp ไว้ ใช้ยืนยันว่าเปิดถูกไฟล์
 
 ---

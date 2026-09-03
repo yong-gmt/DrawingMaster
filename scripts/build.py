@@ -1,9 +1,11 @@
 import os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.makedirs(os.path.join(ROOT,'build'), exist_ok=True)
+os.makedirs(os.path.join(ROOT,'drawing-master'), exist_ok=True)
 import sys, shutil
 SRC = os.path.join(ROOT, 'src', 'base.html')
-DST = os.path.join(ROOT, 'build', 'DrawingMaster.html')
+# The finished app, in a folder named after the thing rather than after the
+# step that made it: anyone opening the repo can see which file to open.
+DST = os.path.join(ROOT, 'drawing-master', 'DrawingMaster.html')
 shutil.copy(SRC,DST)
 s=open(DST).read()
 mod=open(os.path.join(ROOT,'src','modules','dimmodel.js')).read()
@@ -1898,6 +1900,119 @@ rep('    <div class="fmt-h1">Format Config</div>',
 # openFormat now takes a flag, and a click handler passes the EVENT as its first
 # argument - which is truthy, so every Format Config button opened the defaults.
 rep("  $('#btnFormat').onclick=openFormat;", "  $('#btnFormat').onclick=()=>openFormat(false);")
+
+# ---- what was moved is written down where it was moved to -------------------
+# An object carries its move as dx/dy while the object list is alive, and that
+# list is NOT saved - it is thrown away and rebuilt from the drawing whenever a
+# project is opened. So a move that only ever reached dx/dy did not survive a
+# refresh: every part sprang back to where the imported file had put it, and a
+# label the user had added and dragged went back to the middle of the sheet.
+#
+# Baking folds the moves into the drawing itself, and the drawing is what is
+# saved. Doing it here - in the one function that writes a project down - covers
+# every way out of the program: refresh, closing the tab, going back to the
+# dashboard, switching pages. tests/t_keepplace.js measures it.
+rep("""function persist(){ if(store){ store.updated=Date.now(); const i=DB.findIndex(p=>p.id===store.id); if(i>=0)DB[i]=store; }
+  if(_useIDB){""",
+"""function bakePlaces(){
+  if(!store || !store.pages) return;
+  store.pages.forEach(pg=>{
+    if(pg.type!=='sheet' || !pg.objects || !pg.objects.length) return;
+    try{ bakeOffsets(pg); }catch(e){ console.warn('could not bake positions', e); }
+  });
+}
+function persist(){ bakePlaces();
+  if(store){ store.updated=Date.now(); const i=DB.findIndex(p=>p.id===store.id); if(i>=0)DB[i]=store; }
+  if(_useIDB){""")
+
+# ---- a group the user made is remembered too ---------------------------------
+# The same root cause as the moves above: grouping lives on the object, the object
+# list is thrown away and rebuilt from the drawing, so every group a person made
+# by hand was gone on the next open. Only the groups the program works out for
+# itself - the parts of a dimension - came back, which is why it looked as though
+# grouping "sometimes" survived.
+#
+# The group is written on the PIECES, which are saved, and read back when the
+# objects are rebuilt. Its id is random rather than counted: a counter starts at 1
+# again in the next session, and the second group anyone made would have taken the
+# id of the first and swallowed it.
+rep("""function groupSelection(){ if(selIds.size<2) return; const gid='g'+(_grpSeq++); snapshot();
+  selIds.forEach(id=>{ const o=objById(id); if(o) o.group=gid; }); afterMutate(); toast('grouped'); }
+function ungroupSelection(){ let any=false; snapshot();
+  selIds.forEach(id=>{ const o=objById(id); if(o&&o.group){ o.group=null; any=true; } });
+  if(any){ afterMutate(); toast('ungrouped'); } else history.undo.pop(); }""",
+"""function primsOf(o){ const P=(o&&o.prims)||{}, out=[];
+  ['polys','texts','solids','marks','hatches','clines'].forEach(k=>(P[k]||[]).forEach(x=>{ if(x) out.push(x); }));
+  return out; }
+function groupSelection(){ if(selIds.size<2) return;
+  const gid='u'+Math.random().toString(36).slice(2,10); snapshot();
+  selIds.forEach(id=>{ const o=objById(id); if(!o) return; o.group=gid;
+    primsOf(o).forEach(x=>{ x._grp=gid; }); });
+  afterMutate(); toast('grouped'); }
+function ungroupSelection(){ let any=false; snapshot();
+  selIds.forEach(id=>{ const o=objById(id); if(o&&o.group){ o.group=null;
+    primsOf(o).forEach(x=>{ if(x._grp!=null) delete x._grp; }); any=true; } });
+  if(any){ afterMutate(); toast('ungrouped'); } else history.undo.pop(); }""")
+
+# and read back when the object list is built again
+rep("""    const dim=o&&o._dim, sec=o&&o._sec, bal=o&&o._bal;
+    let grp=null;
+    if(dim){ grp=dimGroups[dim] || (dimGroups[dim]='g'+(_gidSeq++)); }""",
+"""    const dim=o&&o._dim, sec=o&&o._sec, bal=o&&o._bal;
+    let grp=null;
+    /* A group the user made outranks the one the program would work out: they
+       grouped these pieces on purpose, and said so on the pieces themselves. */
+    if(o&&o._grp){ grp=o._grp; }
+    else if(dim){ grp=dimGroups[dim] || (dimGroups[dim]='g'+(_gidSeq++)); }""")
+
+# a filled shape is an ARRAY: its group has to be packed with the rest of its tags
+rep("  ['_dim','_sec','_bal','_section','_layer'].forEach(k=>{ if(sd[k]!=null) o[k]=sd[k]; });",
+    "  ['_dim','_sec','_bal','_section','_layer','_grp'].forEach(k=>{ if(sd[k]!=null) o[k]=sd[k]; });")
+rep("  ['_dim','_sec','_bal','_section','_layer'].forEach(k=>{ if(o[k]!=null) a[k]=o[k]; });",
+    "  ['_dim','_sec','_bal','_section','_layer','_grp'].forEach(k=>{ if(o[k]!=null) a[k]=o[k]; });")
+
+# so is a point mark, and for the same reason
+rep("""/* Written-down form of a project: filled shapes packed so their tags survive. */""",
+"""function _packMark(m){ return (Array.isArray(m) && m._grp!=null)? {_p:[m[0],m[1]], _grp:m._grp} : m; }
+function _unpackMark(o){ if(Array.isArray(o) || !o || !o._p) return o;
+  const a=[o._p[0], o._p[1]]; if(o._grp!=null) a._grp=o._grp; return a; }
+/* Written-down form of a project: filled shapes packed so their tags survive. */""")
+rep("""    pg.dxf.solids=src.dxf.solids.map(_packSolid);
+  });""",
+"""    pg.dxf.solids=src.dxf.solids.map(_packSolid);
+    if(src.dxf.marks) pg.dxf.marks=src.dxf.marks.map(_packMark);
+  });""")
+rep("""    if(pg && pg.dxf && pg.dxf.solids) pg.dxf.solids=pg.dxf.solids.map(_unpackSolid);""",
+"""    if(pg && pg.dxf && pg.dxf.solids) pg.dxf.solids=pg.dxf.solids.map(_unpackSolid);
+    if(pg && pg.dxf && pg.dxf.marks) pg.dxf.marks=pg.dxf.marks.map(_unpackMark);""")
+
+# ---- undo must hand back a drawing that is still joined up -------------------
+# A snapshot was a plain JSON copy of the pages, and that copy contains BOTH the
+# drawing and the object list - as two separate copies of what were the same
+# pieces. After an undo, moving something wrote into the object list's copy while
+# the drawing kept the old numbers, and saving wrote down the drawing: the move
+# was lost on the next open, and only ever after an undo, which is what made it
+# look random. Plain JSON also drops the tags carried on filled shapes, so an undo
+# could take a marker's arrowheads away from it.
+#
+# So a snapshot is written the same way a saved project is - tags packed, object
+# list left out - and reading one back rebuilds the objects from the drawing.
+rep("""function snapshot(){ history.undo.push(JSON.stringify({pages:store.pages,format:store.format,name:store.name}));""",
+"""function _snapText(){ return JSON.stringify(packProject({pages:store.pages, format:store.format, name:store.name})); }
+function snapshot(){ history.undo.push(_snapText());""")
+rep("""function applySnap(s){ const o=JSON.parse(s); store.pages=o.pages; store.format=o.format; store.name=o.name;
+  if(!store.pages.find(p=>p.id===store.activeId)) store.activeId=store.pages[0].id; }""",
+"""function applySnap(s){ const o=unpackProject(JSON.parse(s));
+  store.pages=o.pages; store.format=o.format; store.name=o.name;
+  if(!store.pages.find(p=>p.id===store.activeId)) store.activeId=store.pages[0].id;
+  /* Build the objects from the drawing that just came back, so the two are the
+     same pieces again and everything drawn from a model is drawn once more. */
+  store.pages.forEach(pg=>{ if(pg.type==='sheet' && pg.dxf) rebuildKeepingPlaces(pg); });
+  if(typeof selIds!=='undefined'){ selIds=new Set(); if(typeof updateSelToolbar==='function') updateSelToolbar(); } }""")
+rep("""function undo(){ if(!history.undo.length)return; history.redo.push(JSON.stringify({pages:store.pages,format:store.format,name:store.name}));""",
+"""function undo(){ if(!history.undo.length)return; history.redo.push(_snapText());""")
+rep("""function redo(){ if(!history.redo.length)return; history.undo.push(JSON.stringify({pages:store.pages,format:store.format,name:store.name}));""",
+"""function redo(){ if(!history.redo.length)return; history.undo.push(_snapText());""")
 
 open(DST,'w').write(s)
 print('patched ok')

@@ -1,5 +1,4 @@
 node_modules/
-build/
 __pycache__/
 *.png
 tests/out/

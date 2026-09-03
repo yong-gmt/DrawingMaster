@@ -1,7 +1,7 @@
 # Shipped builds
 
 `DM_AX_artwork.html` is the build as it stood when this folder was packed. The one
-to use is `build/DrawingMaster.html`, assembled from source:
+to use is `drawing-master/DrawingMaster.html`, assembled from source:
 
 ```bash
 python3 scripts/build.py && python3 scripts/artwork.py

@@ -19,21 +19,21 @@ npm install
 npx playwright install chromium
 pip install ezdxf                       # หรือ pip install ezdxf --break-system-packages
 
-python3 scripts/build.py                # -> build/DrawingMaster.html
+python3 scripts/build.py                # -> drawing-master/DrawingMaster.html
 node tests/t_model.js                   # ลองสักตัว
 ```
 
 เปิดแอป:
 
 ```bash
-open build/DrawingMaster.html           # macOS
-xdg-open build/DrawingMaster.html       # Linux
+open drawing-master/DrawingMaster.html   # macOS
+xdg-open drawing-master/DrawingMaster.html   # Linux
 start build\DrawingMaster.html          # Windows
 ```
 
 > **ข้อควรระวัง:** เปิดแบบ `file://` เบราว์เซอร์บางตัวจำกัดการเก็บข้อมูล
 > ถ้าเจอว่าโปรเจกต์ไม่ถูกบันทึก ให้เปิดผ่าน VS Code Live Server
-> หรือ `python3 -m http.server` แล้วเข้าทาง `http://localhost:8000/build/`
+> หรือ `python3 -m http.server` แล้วเข้าทาง `http://localhost:8000/drawing-master/`
 
 ## Claude Code
 
