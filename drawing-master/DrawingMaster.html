@@ -8228,15 +8228,18 @@ function _slim(k,v){ return (typeof v==='number' && isFinite(v)) ? +v.toFixed(4)
 function _packSolid(sd){
   if(!Array.isArray(sd)) return sd;
   const o={ _pts:sd.map(q=>[q[0], q[1]]) };
-  ['_dim','_sec','_bal','_section','_layer'].forEach(k=>{ if(sd[k]!=null) o[k]=sd[k]; });
+  ['_dim','_sec','_bal','_section','_layer','_grp'].forEach(k=>{ if(sd[k]!=null) o[k]=sd[k]; });
   return o;
 }
 function _unpackSolid(o){
   if(Array.isArray(o) || !o || !o._pts) return o;
   const a=o._pts.map(q=>[q[0], q[1]]);
-  ['_dim','_sec','_bal','_section','_layer'].forEach(k=>{ if(o[k]!=null) a[k]=o[k]; });
+  ['_dim','_sec','_bal','_section','_layer','_grp'].forEach(k=>{ if(o[k]!=null) a[k]=o[k]; });
   return a;
 }
+function _packMark(m){ return (Array.isArray(m) && m._grp!=null)? {_p:[m[0],m[1]], _grp:m._grp} : m; }
+function _unpackMark(o){ if(Array.isArray(o) || !o || !o._p) return o;
+  const a=[o._p[0], o._p[1]]; if(o._grp!=null) a._grp=o._grp; return a; }
 /* Written-down form of a project: filled shapes packed so their tags survive. */
 function packProject(proj){
   const out=JSON.parse(JSON.stringify(proj, _saveShape));
@@ -8244,12 +8247,14 @@ function packProject(proj){
     const src=(proj.pages||[])[i];
     if(!src || !src.dxf || !src.dxf.solids) return;
     pg.dxf.solids=src.dxf.solids.map(_packSolid);
+    if(src.dxf.marks) pg.dxf.marks=src.dxf.marks.map(_packMark);
   });
   return out;
 }
 function unpackProject(proj){
   (proj && proj.pages || []).forEach(pg=>{
     if(pg && pg.dxf && pg.dxf.solids) pg.dxf.solids=pg.dxf.solids.map(_unpackSolid);
+    if(pg && pg.dxf && pg.dxf.marks) pg.dxf.marks=pg.dxf.marks.map(_unpackMark);
   });
   return proj;
 }
@@ -8258,7 +8263,15 @@ function _saveShape(k,v){
   return _slim(k,v);
 }
 function storageUsed(){ try{ return (localStorage.getItem(LS_KEY)||'').length; }catch(e){ return 0; } }
-function persist(){ if(store){ store.updated=Date.now(); const i=DB.findIndex(p=>p.id===store.id); if(i>=0)DB[i]=store; }
+function bakePlaces(){
+  if(!store || !store.pages) return;
+  store.pages.forEach(pg=>{
+    if(pg.type!=='sheet' || !pg.objects || !pg.objects.length) return;
+    try{ bakeOffsets(pg); }catch(e){ console.warn('could not bake positions', e); }
+  });
+}
+function persist(){ bakePlaces();
+  if(store){ store.updated=Date.now(); const i=DB.findIndex(p=>p.id===store.id); if(i>=0)DB[i]=store; }
   if(_useIDB){
     // save only the project being worked on; the rest are already on disk
     const one=store||null;
@@ -8278,13 +8291,19 @@ function persist(){ if(store){ store.updated=Date.now(); const i=DB.findIndex(p=
   } }
 
 /* ---------- undo / redo ---------- */
-function snapshot(){ history.undo.push(JSON.stringify({pages:store.pages,format:store.format,name:store.name}));
+function _snapText(){ return JSON.stringify(packProject({pages:store.pages, format:store.format, name:store.name})); }
+function snapshot(){ history.undo.push(_snapText());
   if(history.undo.length>80) history.undo.shift(); history.redo.length=0; updateUndoButtons(); }
-function applySnap(s){ const o=JSON.parse(s); store.pages=o.pages; store.format=o.format; store.name=o.name;
-  if(!store.pages.find(p=>p.id===store.activeId)) store.activeId=store.pages[0].id; }
-function undo(){ if(!history.undo.length)return; history.redo.push(JSON.stringify({pages:store.pages,format:store.format,name:store.name}));
+function applySnap(s){ const o=unpackProject(JSON.parse(s));
+  store.pages=o.pages; store.format=o.format; store.name=o.name;
+  if(!store.pages.find(p=>p.id===store.activeId)) store.activeId=store.pages[0].id;
+  /* Build the objects from the drawing that just came back, so the two are the
+     same pieces again and everything drawn from a model is drawn once more. */
+  store.pages.forEach(pg=>{ if(pg.type==='sheet' && pg.dxf) rebuildKeepingPlaces(pg); });
+  if(typeof selIds!=='undefined'){ selIds=new Set(); if(typeof updateSelToolbar==='function') updateSelToolbar(); } }
+function undo(){ if(!history.undo.length)return; history.redo.push(_snapText());
   applySnap(history.undo.pop()); afterMutate(true); }
-function redo(){ if(!history.redo.length)return; history.undo.push(JSON.stringify({pages:store.pages,format:store.format,name:store.name}));
+function redo(){ if(!history.redo.length)return; history.undo.push(_snapText());
   applySnap(history.redo.pop()); afterMutate(true); }
 function updateUndoButtons(){ const u=$('#btnUndo'),r=$('#btnRedo'); if(u)u.disabled=!history.undo.length; if(r)r.disabled=!history.redo.length; }
 function afterMutate(skipSnap){ renderSidebar(); syncNavName(); render(); persist(); updateUndoButtons(); }
@@ -11192,15 +11211,19 @@ function bakeOffsets(pg){
     n++;
   });
   if(!n) return 0;
-  /* solids live in the drawing's own array, so move them there */
-  const moved=new Map();
+  const d=pg.dxf||{};
+  /* A filled shape and a centre mark are plain ARRAYS, and the drawing and the
+     object list hold the same array - not a copy of it. So they are moved in
+     place. Writing a new array into d.solids instead left the object still
+     holding the old one: the arrowhead on screen jumped back to where it started
+     the moment anything redrew, and its tags had to be copied across by hand. */
   objs.forEach(o=>{ const dx=o.dx||0, dy=o.dy||0;
     if(!dx && !dy) return;
-    (o.prims.solids||[]).forEach(sd=>moved.set(sd,[dx,dy])); });
-  const d=pg.dxf||{};
-  (d.solids||[]).forEach((sd,i)=>{ const m=moved.get(sd); if(!m) return;
-    const nn=sd.map(q=>[q[0]+m[0], q[1]+m[1]]);
-    nn._dim=sd._dim||null; nn._sec=sd._sec||null; nn._section=sd._section; d.solids[i]=nn; });
+    (o.prims.solids||[]).forEach(sd=>{ if(sd._baked) return; sd._baked=1;
+      sd.forEach(q=>{ q[0]+=dx; q[1]+=dy; }); });
+    (o.prims.marks||[]).forEach(mk=>{ if(mk._baked) return; mk._baked=1;
+      mk[0]+=dx; mk[1]+=dy; });
+  });
   /* and the models, so a redraw puts them where the strokes now are */
   const shift=(id, list, fn)=>{
     (list||[]).forEach(mm=>{
@@ -11216,10 +11239,12 @@ function bakeOffsets(pg){
   shift('_bal', d.balloons, (m,dx,dy)=>{ m.c=[m.c[0]+dx,m.c[1]+dy];
                                           m.tip=[m.tip[0]+dx,m.tip[1]+dy]; });
   objs.forEach(o=>{ o.dx=0; o.dy=0; });
-  (d.polys||[]).forEach(p=>{ delete p._baked; });
-  (d.texts||[]).forEach(t=>{ delete t._baked; });
-  (d.hatches||[]).forEach(h=>{ delete h._baked; });
-  (d.clines||[]).forEach(c=>{ delete c._baked; });
+  /* Clear the marks from the pieces themselves, not from the drawing's lists: a
+     piece the object list carries but d.polys does not - one added since the last
+     rebuild - would keep its _baked flag for ever and never move again. */
+  objs.forEach(o=>{ const P=o.prims||{};
+    ['polys','texts','hatches','clines','solids','marks'].forEach(k=>
+      (P[k]||[]).forEach(x=>{ if(x&&x._baked) delete x._baked; })); });
   return n;
 }
 function secReport(){
@@ -12680,7 +12705,10 @@ function buildObjects(pg){
     // arrive already tagged, so they land in one group and select/move as a unit.
     const dim=o&&o._dim, sec=o&&o._sec, bal=o&&o._bal;
     let grp=null;
-    if(dim){ grp=dimGroups[dim] || (dimGroups[dim]='g'+(_gidSeq++)); }
+    /* A group the user made outranks the one the program would work out: they
+       grouped these pieces on purpose, and said so on the pieces themselves. */
+    if(o&&o._grp){ grp=o._grp; }
+    else if(dim){ grp=dimGroups[dim] || (dimGroups[dim]='g'+(_gidSeq++)); }
     else if(sec){ grp=dimGroups[sec] || (dimGroups[sec]='g'+(_gidSeq++)); }
     else if(bal){ grp=dimGroups[bal] || (dimGroups[bal]='g'+(_gidSeq++)); }
     objs.push({ id:'o'+(_oidSeq++), dx:0, dy:0, group:grp, _dim:dim||null, _sec:sec||null,
@@ -14292,10 +14320,17 @@ function drawSelection(){
 }
 
 let _grpSeq=1;
-function groupSelection(){ if(selIds.size<2) return; const gid='g'+(_grpSeq++); snapshot();
-  selIds.forEach(id=>{ const o=objById(id); if(o) o.group=gid; }); afterMutate(); toast('grouped'); }
+function primsOf(o){ const P=(o&&o.prims)||{}, out=[];
+  ['polys','texts','solids','marks','hatches','clines'].forEach(k=>(P[k]||[]).forEach(x=>{ if(x) out.push(x); }));
+  return out; }
+function groupSelection(){ if(selIds.size<2) return;
+  const gid='u'+Math.random().toString(36).slice(2,10); snapshot();
+  selIds.forEach(id=>{ const o=objById(id); if(!o) return; o.group=gid;
+    primsOf(o).forEach(x=>{ x._grp=gid; }); });
+  afterMutate(); toast('grouped'); }
 function ungroupSelection(){ let any=false; snapshot();
-  selIds.forEach(id=>{ const o=objById(id); if(o&&o.group){ o.group=null; any=true; } });
+  selIds.forEach(id=>{ const o=objById(id); if(o&&o.group){ o.group=null;
+    primsOf(o).forEach(x=>{ if(x._grp!=null) delete x._grp; }); any=true; } });
   if(any){ afterMutate(); toast('ungrouped'); } else history.undo.pop(); }
 function deleteSelection(){ if(!selIds.size) return; snapshot(); const pg=activePage();
   let n=0;
@@ -15294,8 +15329,8 @@ function boot(){
   { const b=$('#btnStylize'); if(b) b.onclick=stylizeANSI; }                 // real DXF import (rpClose/rpSave handled by openTitlePanel)
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // print the build stamp where anyone can check it: console, and the title bar
-  try{ console.log('DrawingMaster — build 03 Sep 14:22');
-       document.title='Drawing Master · build 03 Sep 14:22'; }catch(e){}
+  try{ console.log('DrawingMaster — build 03 Sep 17:54');
+       document.title='Drawing Master · build 03 Sep 17:54'; }catch(e){}
   { const bb=$('#btnBalloon'); if(bb) bb.onclick=addBalloon; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }
