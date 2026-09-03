@@ -1,0 +1,16 @@
+{
+  "name": "drawing-master",
+  "version": "1.0.0",
+  "description": "DXF drawing viewer, annotation restyler and editable-DXF exporter",
+  "private": true,
+  "scripts": {
+    "build": "python3 scripts/build.py",
+    "test": "bash scripts/test.sh",
+    "test:unit": "bash scripts/unit.sh",
+    "test:browser": "bash scripts/test.sh"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0",
+    "sharp": "^0.33.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "anthropic.claude-code",
+    "ritwickdey.liveserver",
+    "ms-python.python",
+    "ms-playwright.playwright"
+  ]
+}

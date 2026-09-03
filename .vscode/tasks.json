@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "shell",
+      "command": "python3 scripts/build.py",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test (all)",
+      "type": "shell",
+      "command": "bash scripts/test.sh",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test (current file)",
+      "type": "shell",
+      "command": "node ${file}",
+      "problemMatcher": []
+    }
+  ]
+}
