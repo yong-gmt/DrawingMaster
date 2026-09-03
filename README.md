@@ -36,47 +36,6 @@ bash scripts/test.sh      # the whole app through a real browser — minutes
 
 ---
 
-## Using it with Claude Code
-
-```bash
-cd drawing-master
-claude
-```
-
-`CLAUDE.md` is read automatically and tells Claude how the build works, how to run
-the tests, and which rules this codebase holds itself to.
-
-Some openings that suit this project:
-
-```
-อ่าน docs/ANALYSIS.md แล้วสรุปว่ายังเหลืออะไรที่ยังไม่ได้แก้
-ทำ angular dimension ให้มีโมเดล แล้วเขียนเทสต์ที่วัดจากเส้นที่วาดจริง
-รัน bash scripts/test.sh แล้วบอกว่าตัวไหนไม่ผ่านและทำไม
-```
-
-Two habits worth keeping when working with Claude here:
-
-- **Ask for the measurement, not the verdict.** "รันเทสต์แล้วบอกตัวเลข" beats
-  "แก้ให้หน่อย" — this codebase has a long history of changes that passed every
-  check and still looked wrong on screen.
-- **One change per round.** A round that mixes six changes cannot be rolled back
-  when one of them breaks something.
-
-## Using it with VS Code
-
-```bash
-code drawing-master
-```
-
-Suggested extensions: **Claude Code**, **Live Server** (open
-`build/DrawingMaster.html` with a right-click → *Open with Live Server*, which
-avoids `file://` storage restrictions), **Python**, **Playwright Test**.
-
-`.vscode/tasks.json` ships with **Build** and **Test** tasks — `Ctrl/Cmd+Shift+B`
-builds.
-
----
-
 ## Layout
 
 ```
