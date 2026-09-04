@@ -1867,11 +1867,17 @@ rep("""function closeFormat(save){
 """function closeFormat(save){
   if(save && fmtEditingDefaults){
     delete fmtDraft.__project;
-    /* Only what a new drawing should start as. The project name and the approval
-       names belong to one drawing, not to every drawing that follows it. */
+    /* Only what a new drawing should start as. The project name belongs to one
+       drawing, not to every drawing that follows it. */
     const keep=['paper','margin','font','fontSize','decimals','stroke',
                 'ansiRadius','ansiSection','docType','company','version','scale'];
     const out={}; keep.forEach(k=>{ if(fmtDraft[k]!==undefined) out[k]=fmtDraft[k]; });
+    /* The people who sign the drawings are the same people next time, so the
+       approval NAMES carry to the next project. The dates are that drawing's own
+       and start empty. Projects already made keep what they were given. */
+    out.approvals={};
+    ['design','drawn','approved'].forEach(k=>{
+      out.approvals[k]={ name:((fmtDraft.approvals||{})[k]||{}).name||'', date:'' }; });
     if(saveDefaultFormat(out)) toast('saved as the default for new projects');
     else toast('could not save the default format');
   }
