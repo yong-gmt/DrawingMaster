@@ -1896,7 +1896,7 @@ rep("  $('#btnCreate').onclick=createProject;",
 
 # say which of the two the panel is editing, so nobody saves the wrong one
 rep('    <div class="fmt-h1">Format Config</div>',
-    '    <div class="fmt-h1">${fmtEditingDefaults? \'Default Format &mdash; for new projects\' : \'Format Config\'}</div>')
+    '    <div class="fmt-h1">${fmtEditingDefaults? \'Default Format\' : \'Format Config\'}</div>')
 
 # openFormat now takes a flag, and a click handler passes the EVENT as its first
 # argument - which is truthy, so every Format Config button opened the defaults.
@@ -2378,6 +2378,36 @@ rep("""    <div class="grp"><label>Drawing No.</label>
 
 rep("""<div class="f-field"><label>Drawing No.</label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>""",
     """<div class="f-field"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>""")
+
+# ---- the defaults panel locks what belongs to one drawing ------------------
+# The gear on the dashboard edits what the NEXT project starts from. Project,
+# Title, Version, Scale and the approval dates describe one drawing, not every
+# drawing that follows it - closeFormat already refuses to save the names, and
+# the fields now say so instead of taking typing that goes nowhere. The same
+# panel opened from inside a project still edits all of them.
+rep("  const dd=k=>splitDate((ap[k]||{}).date);",
+    """  const dd=k=>splitDate((ap[k]||{}).date);
+  /* per-drawing fields: editable in a project, shown but locked in the defaults */
+  const perDwg=fmtEditingDefaults? ' disabled' : '';""")
+
+rep("""        <div class="f-field"><label>Project</label><input class="inp2" id="fProject" placeholder="Working Drawing" value="${(store.name||'')}"></div>
+        <div class="f-field"><label>Title</label><input class="inp2" id="fTitle" placeholder="Title" value="${f.title||''}"></div>""",
+"""        <div class="f-field"><label>Project</label><input class="inp2" id="fProject"${perDwg} placeholder="Working Drawing" value="${(store.name||'')}"></div>
+        <div class="f-field"><label>Title</label><input class="inp2" id="fTitle"${perDwg} placeholder="Title" value="${f.title||''}"></div>""")
+
+rep("""        <div class="f-field"><label>Version</label><input class="inp2" id="fVersion" placeholder="Version" value="${f.version||''}"></div>
+        <div class="f-field"><label>Scale</label>
+          <div class="scale-pair"><input class="inp2" id="fScale1" value="${sc1}"><span>:</span><input class="inp2" id="fScale2" value="${sc2}"></div></div>""",
+"""        <div class="f-field"><label>Version</label><input class="inp2" id="fVersion"${perDwg} placeholder="Version" value="${f.version||''}"></div>
+        <div class="f-field"><label>Scale</label>
+          <div class="scale-pair"><input class="inp2" id="fScale1"${perDwg} value="${sc1}"><span>:</span><input class="inp2" id="fScale2"${perDwg} value="${sc2}"></div></div>""")
+
+rep("""        <input class="inp2" data-ap="${k}" data-fld="d" placeholder="DD" value="${t.d}">
+        <input class="inp2" data-ap="${k}" data-fld="m" placeholder="MM" value="${t.m}">
+        <input class="inp2" data-ap="${k}" data-fld="y" placeholder="YYYY" value="${t.y}">""",
+"""        <input class="inp2" data-ap="${k}" data-fld="d"${perDwg} placeholder="DD" value="${t.d}">
+        <input class="inp2" data-ap="${k}" data-fld="m"${perDwg} placeholder="MM" value="${t.m}">
+        <input class="inp2" data-ap="${k}" data-fld="y"${perDwg} placeholder="YYYY" value="${t.y}">""")
 
 open(DST,'w').write(s)
 print('patched ok')

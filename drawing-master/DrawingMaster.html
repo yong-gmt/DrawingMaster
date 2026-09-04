@@ -376,7 +376,7 @@ input[type=range]::-moz-range-thumb{width:19px;height:19px;border:none;border-ra
     <div class="dash-brand"><div class="mark"><i class="bi bi-pencil-square"></i></div><h1>Drawing Master</h1></div>
     <div class="dash-actions">
       <button class="btn-dark" id="btnCreate"><i class="bi bi-plus-lg"></i> Create New</button>
-      <button class="icon-circle" id="btnDefaults" title="Default Format Config"><i class="bi bi-gear"></i></button>
+      <button class="icon-circle" id="btnDefaults" title="Default format for new projects"><i class="bi bi-gear"></i></button>
     </div>
   </div>
   <div id="projGrid" class="proj-grid"></div>
@@ -14723,7 +14723,7 @@ function closeFormat(save){
     const keep=['paper','margin','font','fontSize','decimals','stroke',
                 'ansiRadius','ansiSection','docType','company','version','scale'];
     const out={}; keep.forEach(k=>{ if(fmtDraft[k]!==undefined) out[k]=fmtDraft[k]; });
-    if(saveDefaultFormat(out)) toast('saved as the default format');
+    if(saveDefaultFormat(out)) toast('saved as the default for new projects');
     else toast('could not save the default format');
   }
   else if(save){ snapshot();
@@ -14747,10 +14747,12 @@ function renderFormatView(){
   const f=fmtDraft, ap=f.approvals;
   const sc=String(f.scale||'1:1').split(':'); const sc1=sc[0]||'1', sc2=sc[1]||'1';
   const dd=k=>splitDate((ap[k]||{}).date);
+  /* per-drawing fields: editable in a project, shown but locked in the defaults */
+  const perDwg=fmtEditingDefaults? ' disabled' : '';
   const opt=(list,cur)=>list.map(v=>`<option${String(v)===String(cur)?' selected':''}>${v}</option>`).join('');
   $('#formatView').innerHTML=`
   <div class="fmt-wrap">
-    <div class="fmt-h1">${fmtEditingDefaults? 'Default Format Config' : 'Format Config'}</div>
+    <div class="fmt-h1">${fmtEditingDefaults? 'Default Format' : 'Format Config'}</div>
 
     <div class="fmt-grid">
       <div>
@@ -14797,15 +14799,15 @@ function renderFormatView(){
     <div class="tb-sec">
       <h3>Title Bolck</h3>
       <div class="g2">
-        <div class="f-field"><label>Project</label><input class="inp2" id="fProject" placeholder="Working Drawing" value="${(store.name||'')}"></div>
-        <div class="f-field"><label>Title</label><input class="inp2" id="fTitle" placeholder="Title" value="${f.title||''}"></div>
+        <div class="f-field"><label>Project</label><input class="inp2" id="fProject"${perDwg} placeholder="Working Drawing" value="${(store.name||'')}"></div>
+        <div class="f-field"><label>Title</label><input class="inp2" id="fTitle"${perDwg} placeholder="Title" value="${f.title||''}"></div>
       </div>
       <div class="g4">
         <div class="f-field"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>
         <div class="f-field"><label>Part No.</label><input class="inp2" disabled placeholder="No."></div>
-        <div class="f-field"><label>Version</label><input class="inp2" id="fVersion" placeholder="Version" value="${f.version||''}"></div>
+        <div class="f-field"><label>Version</label><input class="inp2" id="fVersion"${perDwg} placeholder="Version" value="${f.version||''}"></div>
         <div class="f-field"><label>Scale</label>
-          <div class="scale-pair"><input class="inp2" id="fScale1" value="${sc1}"><span>:</span><input class="inp2" id="fScale2" value="${sc2}"></div></div>
+          <div class="scale-pair"><input class="inp2" id="fScale1"${perDwg} value="${sc1}"><span>:</span><input class="inp2" id="fScale2"${perDwg} value="${sc2}"></div></div>
       </div>
       <div class="g3">
         <div class="f-field"><label>Material</label><input class="inp2" disabled placeholder="Material"></div>
@@ -14818,9 +14820,9 @@ function renderFormatView(){
         <span class="rl">${cap}</span>
         <input class="inp2" data-ap="${k}" data-fld="name" placeholder="Name" value="${(ap[k]||{}).name||''}">
         <span class="rl" style="text-align:right">Date</span>
-        <input class="inp2" data-ap="${k}" data-fld="d" placeholder="DD" value="${t.d}">
-        <input class="inp2" data-ap="${k}" data-fld="m" placeholder="MM" value="${t.m}">
-        <input class="inp2" data-ap="${k}" data-fld="y" placeholder="YYYY" value="${t.y}">
+        <input class="inp2" data-ap="${k}" data-fld="d"${perDwg} placeholder="DD" value="${t.d}">
+        <input class="inp2" data-ap="${k}" data-fld="m"${perDwg} placeholder="MM" value="${t.m}">
+        <input class="inp2" data-ap="${k}" data-fld="y"${perDwg} placeholder="YYYY" value="${t.y}">
       </div>`;}).join('')}
       <div class="tbprevbox"><div class="cap">Preview</div><canvas id="tbPrev"></canvas></div>
     </div>
@@ -15458,8 +15460,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 04 Sep 12:50';
-       console.log('DrawingMaster — build 04 Sep 12:50'); }catch(e){}
+  try{ window.__build='build 04 Sep 15:15';
+       console.log('DrawingMaster — build 04 Sep 15:15'); }catch(e){}
   { const bb=$('#btnBalloon'); if(bb) bb.onclick=addBalloon; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }
