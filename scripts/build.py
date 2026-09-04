@@ -2458,5 +2458,13 @@ rep("""  }catch(err){ console.warn('project migration failed', err); }""",
 # ---- the heading spells the thing it heads ---------------------------------
 rep("      <h3>Title Bolck</h3>", "      <h3>Title Block</h3>")
 
+# ---- the title reads as a title ---------------------------------------------
+# Every other value in the block is drawn in capitals - PROJECT already forced
+# them - so a title typed in lower case was the one thing that came out looking
+# like a note. The typing is left alone; only what is drawn is capitalised, which
+# is the same text the PDF and the exported DXF are made from.
+rep("  LB(FX.tol,0,'TITLE');    VAL(FX.tol,FX.part,0,FY.b1,t.title||'TITLE',3.34,true);",
+    "  LB(FX.tol,0,'TITLE');    VAL(FX.tol,FX.part,0,FY.b1,(t.title||'TITLE').toUpperCase(),3.34,true);")
+
 open(DST,'w').write(s)
 print('patched ok')
