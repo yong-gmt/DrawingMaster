@@ -2015,5 +2015,251 @@ rep("""function undo(){ if(!history.undo.length)return; history.redo.push(JSON.s
 rep("""function redo(){ if(!history.redo.length)return; history.undo.push(JSON.stringify({pages:store.pages,format:store.format,name:store.name}));""",
 """function redo(){ if(!history.redo.length)return; history.undo.push(_snapText());""")
 
+# ---- the box you type in is big enough to type in ---------------------------
+# Every click-to-edit box was cut to the exact size of the DRAWN text: at the size
+# a label is really drawn that is a sliver ten pixels tall and as wide as the word
+# already in it - hard to hit, with no room for the caret and nowhere to put a
+# longer line. The text inside still sits exactly where it is drawn; the box grows
+# around it, and very small text is typed at a readable size instead of a 9 px one.
+rep("function startTextEdit(ob,t){", """/* One place that decides the shape of an inline editor, used by both of them:
+   the labels on a sheet and the fields on the cover and description pages. */
+const EDIT_PAD_X=12, EDIT_PAD_Y=9, EDIT_BORDER=2, EDIT_MIN_FONT=15, EDIT_MIN_W=200;
+function inlineTextWidth(v, fontPx, bold){
+  try{ ctx.save(); ctx.font=(bold?'700 ':'400 ')+fontPx+'px '+store.format.font+',Arial';
+       const w=ctx.measureText(String(v||'')||'M').width; ctx.restore(); return w; }
+  catch(_){ return String(v||'').length*fontPx*0.6; }
+}
+/* o: {fontPx, bold, align:'left'|'center'|'right', anchorX, textMidY, textW, minW}
+   anchorX is the screen x of the text's OWN anchor - its left edge, centre or
+   right edge, whichever the alignment says - so the box is placed from the text
+   rather than the text from the box, and nothing appears to jump when clicked. */
+function layoutInlineEdit(el, o){
+  const f=Math.max(EDIT_MIN_FONT, o.fontPx);
+  const lh=Math.round(f*1.3);
+  const h=lh+EDIT_PAD_Y*2+EDIT_BORDER*2;
+  const w=Math.max(o.minW||EDIT_MIN_W, o.textW+f*1.5)+EDIT_PAD_X*2+EDIT_BORDER*2;
+  el.style.boxSizing='border-box';
+  el.style.font=(o.bold?'700 ':'400 ')+f+'px '+store.format.font+',Arial';
+  el.style.lineHeight=lh+'px';
+  el.style.padding='0 '+EDIT_PAD_X+'px';
+  el.style.borderWidth=EDIT_BORDER+'px';
+  el.style.width=w+'px'; el.style.height=h+'px';
+  el.style.textAlign=o.align;
+  let left=o.anchorX;
+  if(o.align==='center') left-=w/2;
+  else if(o.align==='right') left-=w-EDIT_PAD_X-EDIT_BORDER;
+  else left-=EDIT_PAD_X+EDIT_BORDER;
+  /* and never off the edge of the stage, where it could not be typed into */
+  const sw=(stage&&stage.clientWidth)||0;
+  if(sw){ left=Math.min(left, sw-w-8); left=Math.max(left, 8); }
+  el.style.left=Math.round(left)+'px';
+  el.style.top=Math.round(o.textMidY-h/2)+'px';
+  return {w:w, h:h, font:f};
+}
+function startTextEdit(ob,t){""")
+
+# the sheet labels
+rep("""  const padX=Math.max(2,hpx*0.06), bd=1.5;
+  const wpx=Math.max(hpx*0.9, tw)+padX*2+bd*2+2;
+  const H=hpx*1.18;
+  let left; if(t.align===1) left=p.x-wpx/2; else if(t.align===2) left=p.x-wpx; else left=p.x-padX-bd;
+  const top=p.y - hpx*0.94;                                  // align input's text baseline with p.y
+  el.style.boxSizing='border-box';
+  el.style.left=left+'px'; el.style.top=top+'px';
+  el.style.width=wpx+'px'; el.style.height=H+'px'; el.style.lineHeight=H+'px';
+  el.style.padding='0 '+padX+'px'; el.style.borderWidth=bd+'px';
+  el.style.font=`${FW}${hpx}px ${store.format.font},Arial`;
+  if(isUserText(t)) el.style.textTransform='uppercase';
+  el.style.textAlign=(t.align===1?'center':t.align===2?'right':'left');""",
+"""  const ALIGN=(t.align===1?'center':t.align===2?'right':'left');
+  /* p.y is the baseline; the middle of the letters sits a third of the height
+     above it, and that is the point the box is centred on. */
+  const box=()=>layoutInlineEdit(el, {fontPx:hpx, bold:!!t.bold, align:ALIGN,
+    anchorX:p.x, textMidY:p.y-hpx*0.35,
+    textW:inlineTextWidth(el.value, Math.max(EDIT_MIN_FONT,hpx), !!t.bold)});
+  box();
+  if(isUserText(t)) el.style.textTransform='uppercase';""")
+rep("""    try{ ctx.save(); ctx.font=`${FW}${hpx}px ${store.format.font},Arial`; const nw=ctx.measureText(el.value||'M').width; ctx.restore();
+      const W2=Math.max(hpx*0.9,nw)+padX*2+bd*2+2; el.style.width=W2+'px';
+      if(t.align===1) el.style.left=(p.x-W2/2)+'px'; else if(t.align===2) el.style.left=(p.x-W2)+'px'; }catch(_){}""",
+"""    try{ box(); }catch(_){}                                  // grow around the text""")
+
+# the cover and description pages
+rep("""  const tl=W2S(zone.x,zone.y+zone.h), br=W2S(zone.x+zone.w,zone.y);
+  const el=document.createElement(zone.multiline?'textarea':'input');
+  el.className='inline-edit'; el.value=zone.val||'';
+  if(zone.multiline){ el.style.lineHeight=mm2px(zone.lh)+'px'; el.rows=3; }
+  el.style.left=tl.x+'px'; el.style.top=tl.y+'px';
+  el.style.width=Math.max(60,br.x-tl.x)+'px'; el.style.height=(br.y-tl.y)+'px';
+  el.style.font=(zone.bold?'700 ':'400 ')+mm2px(zone.em)+'px '+store.format.font+',Arial';
+  el.style.textAlign=zone.align==='c'?'center':zone.align==='r'?'right':'left';
+  stage.appendChild(el);""",
+"""  const el=document.createElement(zone.multiline?'textarea':'input');
+  el.className='inline-edit'; el.value=zone.val||'';
+  const ALIGN=zone.align==='c'?'center':zone.align==='r'?'right':'left';
+  const fontPx=mm2px(zone.em);
+  /* The anchor is the edge the text is drawn from, and the middle of the box is
+     the middle of the letters - zone.y is their foot, zone.h their height. */
+  const anchorX=(ALIGN==='center') ? W2S(zone.x+zone.w/2, 0).x
+              : (ALIGN==='right')  ? W2S(zone.x+zone.w, 0).x
+                                   : W2S(zone.x, 0).x;
+  const midY=W2S(0, zone.y+zone.h/2).y;
+  /* A sentence needs somewhere to write a sentence; a one-word field does not. */
+  const minW=(zone.key==='body') ? 460 : EDIT_MIN_W;
+  const box=()=>layoutInlineEdit(el, {fontPx:fontPx, bold:!!zone.bold, align:ALIGN,
+    anchorX:anchorX, textMidY:midY, minW:minW,
+    textW:inlineTextWidth(el.value, Math.max(EDIT_MIN_FONT,fontPx), !!zone.bold)});
+  box();
+  if(zone.multiline){ el.style.lineHeight=mm2px(zone.lh)+'px'; el.rows=3; }
+  el.addEventListener('input',()=>{ try{ box(); }catch(_){} });
+  stage.appendChild(el);""")
+
+# ---- the description legend: 4 px more air between the rows ------------------
+# The five rows were 8.5 mm apart, which at the scale the page is read at (about
+# 2.6 px per mm at 100%) leaves the labels almost touching. 4 px is 1.5 mm, and
+# the hatched box moves down with them so the rhythm stays even.
+rep("""  const yTop=80.5*k, yGap=8.5*k;      /* lowered: the description needs the space */""",
+"""  /* 4.6 mm more than the 8.5 it was drawn at = 12 px at the scale the page is
+     read at (about 2.59 px per mm at 100%). */
+  const yTop=80.5*k, yGap=(8.5+4.6)*k;""")
+rep("""  const boxTop=lineY[3]-4.5*k, boxBot=boxTop-8.8*k;""",
+"""  const boxTop=lineY[3]-(4.5+4.6)*k, boxBot=boxTop-8.8*k;""")
+
+# ---- a short field is as wide as what is in it ------------------------------
+# A minimum width that suits a sentence is a nuisance on a dimension value: the
+# box covered the drawing around what was being typed. The floor is now only what
+# a caret and a couple of characters need; the box still grows as you type.
+rep("const EDIT_PAD_X=12, EDIT_PAD_Y=9, EDIT_BORDER=2, EDIT_MIN_FONT=15, EDIT_MIN_W=200;",
+    "const EDIT_PAD_X=12, EDIT_PAD_Y=9, EDIT_BORDER=2, EDIT_MIN_FONT=15, EDIT_MIN_W=56;")
+rep("  const w=Math.max(o.minW||EDIT_MIN_W, o.textW+f*1.5)+EDIT_PAD_X*2+EDIT_BORDER*2;",
+    """  /* Width follows the text. A fixed width covers whatever is beside it, and on a
+     sheet that is the drawing itself. */
+  const w=(o.fixedW!=null) ? o.fixedW+EDIT_PAD_X*2+EDIT_BORDER*2
+        : Math.max(o.minW||EDIT_MIN_W, o.textW+f*1.5)+EDIT_PAD_X*2+EDIT_BORDER*2;
+  const rows=Math.max(1, o.rows||1), lhBox=o.lineH||lh;""")
+rep("""  el.style.width=w+'px'; el.style.height=h+'px';""",
+    """  const hh=(rows>1)? (rows*lhBox+EDIT_PAD_Y*2+EDIT_BORDER*2) : h;
+  el.style.width=w+'px'; el.style.height=hh+'px';
+  if(rows>1) el.style.lineHeight=lhBox+'px';""")
+rep("""  el.style.left=Math.round(left)+'px';
+  el.style.top=Math.round(o.textMidY-h/2)+'px';
+  return {w:w, h:h, font:f};""",
+"""  el.style.left=Math.round(left)+'px';
+  /* One line is centred on the letters it replaces. Several lines are hung from
+     the FIRST line, so line one lands on line one and the block grows downwards
+     exactly as the drawn text does. */
+  el.style.top=Math.round((rows>1)
+      ? o.textMidY-lhBox/2-EDIT_PAD_Y-EDIT_BORDER
+      : o.textMidY-h/2)+'px';
+  return {w:w, h:hh, font:f};""")
+
+# ---- the description text wraps, and stops where the project name stops ------
+# It was one line that ran on for ever, off the paper and past anything else on
+# the page. A description is a paragraph: it is given the width of the line above
+# it - from its own left edge to the right end of the project name - and wraps.
+rep("""function drawTextMM(x,baseY,txt,em,bold,al){""",
+"""/* Break a paragraph into lines that fit a width, in the page's own millimetres.
+   Newlines the user typed are kept as their own paragraphs; a single word too
+   long to fit is broken rather than allowed to run off the sheet. */
+function wrapTextMM(txt, em, bold, maxW){
+  const out=[];
+  const fitWord=(w)=>{
+    if(measureMM(w,em,bold)<=maxW) return [w];
+    const parts=[]; let cur='';
+    for(const ch of w){ if(cur && measureMM(cur+ch,em,bold)>maxW){ parts.push(cur); cur=ch; } else cur+=ch; }
+    if(cur) parts.push(cur);
+    return parts;
+  };
+  String(txt==null?'':txt).split('\\n').forEach(para=>{
+    const words=para.split(/\\s+/).filter(w=>w.length);
+    if(!words.length){ out.push(''); return; }
+    let line='';
+    words.forEach(w0=>{ fitWord(w0).forEach(w=>{
+      const t=line? line+' '+w : w;
+      if(!line || measureMM(t,em,bold)<=maxW) line=t;
+      else { out.push(line); line=w; } }); });
+    out.push(line);
+  });
+  return out.length? out : [''];
+}
+function drawTextMM(x,baseY,txt,em,bold,al){""")
+rep("""  const emB=5.0*k, byB=120.25*k, body=d.body||'';
+  drawTextMM(xL,byB,body,emB,false,'l');
+  const bw=Math.max(measureMM(body,emB,false),45*u);
+  page._zones.push({key:'body',val:body,x:xL,y:byB,w:bw,h:emB*0.716,em:emB,bold:false,align:'l'});""",
+"""  const emB=5.0*k, byB=120.25*k, body=d.body||'';
+  /* As wide as the line above it and no wider: the project name is right-aligned
+     to xR, so the paragraph runs from its own left edge to that same edge. */
+  const bw=xR-xL, lhB=emB*1.55;
+  const bodyLines=wrapTextMM(body, emB, false, bw);
+  bodyLines.forEach((ln,i)=>drawTextMM(xL, byB-i*lhB, ln, emB, false, 'l'));
+  page._bodyLines=bodyLines.length; page._bodyWidthMM=bw;
+  page._zones.push({key:'body', val:body, x:xL, y:byB-(bodyLines.length-1)*lhB,
+                    w:bw, h:emB*0.716+(bodyLines.length-1)*lhB,
+                    em:emB, bold:false, align:'l', multiline:true, lh:lhB});""")
+
+# the editor for it is the same shape: the same width, wrapping the same way
+rep("""  /* A sentence needs somewhere to write a sentence; a one-word field does not. */
+  const minW=(zone.key==='body') ? 460 : EDIT_MIN_W;
+  const box=()=>layoutInlineEdit(el, {fontPx:fontPx, bold:!!zone.bold, align:ALIGN,
+    anchorX:anchorX, textMidY:midY, minW:minW,
+    textW:inlineTextWidth(el.value, Math.max(EDIT_MIN_FONT,fontPx), !!zone.bold)});
+  box();
+  if(zone.multiline){ el.style.lineHeight=mm2px(zone.lh)+'px'; el.rows=3; }""",
+"""  /* A wrapping field keeps the width it wraps at, so what is typed breaks where
+     it will break on the paper. Everything else is as wide as its own text. */
+  /* When the drawn text is smaller than the smallest comfortable typing size the
+     box is a SCALED copy of the block on the paper - width and line height in the
+     same proportion as the font - so the words break in the editor exactly where
+     they will break when drawn. Widening the box alone would not do it: a bigger
+     font in the same width wraps a word earlier. */
+  const zoomUp=Math.max(1, EDIT_MIN_FONT/Math.max(fontPx,0.01));
+  const wrapW=zone.multiline? mm2px(zone.w)*zoomUp : null;
+  const lineH=zone.multiline? mm2px(zone.lh)*zoomUp : null;
+  /* the top line of the block is the one to hang the box from */
+  const topMidY=zone.multiline? W2S(0, zone.y+zone.h-zone.em*0.716/2).y : midY;
+  const box=()=>{
+    const rows=zone.multiline
+      ? Math.max(1, wrapTextMM(el.value, zone.em, !!zone.bold, zone.w).length) : 1;
+    layoutInlineEdit(el, {fontPx:fontPx, bold:!!zone.bold, align:ALIGN,
+      anchorX:anchorX, textMidY:topMidY, fixedW:wrapW, rows:rows, lineH:lineH,
+      textW:inlineTextWidth(el.value, Math.max(EDIT_MIN_FONT,fontPx), !!zone.bold)});
+  };
+  box();""")
+
+# ---- the padding follows the size of the type -------------------------------
+# 12 and 9 px are right for a title and far too much around a dimension value:
+# on the small type most of this app is set in, the padding was wider than the
+# letters. It is now a quarter of the font size, and never less than 4 px - which
+# is what everything at the minimum typing size gets.
+rep("const EDIT_PAD_X=12, EDIT_PAD_Y=9, EDIT_BORDER=2, EDIT_MIN_FONT=15, EDIT_MIN_W=56;",
+    """const EDIT_PAD_MIN=4, EDIT_BORDER=2, EDIT_MIN_FONT=15, EDIT_MIN_W=56;
+function editPad(fontPx){ return Math.max(EDIT_PAD_MIN, Math.round(fontPx*0.25)); }""")
+rep("""  const lh=Math.round(f*1.3);""",
+    """  const lh=Math.round(f*1.3);
+  const EDIT_PAD_X=editPad(f), EDIT_PAD_Y=EDIT_PAD_X;   // the same air all round""")
+
+# ---- the description page sits in the middle of the paper -------------------
+# The reference layout was drawn for a sheet that had something below it; on its
+# own it sat high on the page with a band of empty paper under the legend. The
+# block is measured between its two FIXED ends - the cap of the project name and
+# the bottom of the hatched box - so that a description growing to several lines
+# moves nothing: the page must not shift about while it is being typed.
+rep("  const xR=260.32*u, xL=131.22*u, xS0=130.51*u, xS1=179.54*u, xLab=188.71*u;",
+"""  const xR=260.32*u, xL=131.22*u, xS0=130.51*u, xS1=179.54*u, xLab=188.71*u;
+  const emP=18.36*k, byP0=133.99*k;                    /* project name */
+  const yTop0=80.5*k, yGap=(8.5+4.6)*k;                /* legend rows */
+  const boxTop0=yTop0-3*yGap-(4.5+4.6)*k, boxBot0=boxTop0-8.8*k;
+  const dyC=H/2-((byP0+emP*0.716)+boxBot0)/2;          /* what centres the block */""")
+rep("  const emP=18.36*k, byP=133.99*k;\n  drawTextMM(xR,byP,proj,emP,true,'r');",
+    "  const byP=byP0+dyC;\n  drawTextMM(xR,byP,proj,emP,true,'r');")
+rep("  const emB=5.0*k, byB=120.25*k, body=d.body||'';",
+    "  const emB=5.0*k, byB=120.25*k+dyC, body=d.body||'';")
+rep("""  const yTop=80.5*k, yGap=(8.5+4.6)*k;
+  const lineY=[0,1,2,3].map(i=>yTop-i*yGap);
+  const boxTop=lineY[3]-(4.5+4.6)*k, boxBot=boxTop-8.8*k;""",
+"""  const lineY=[0,1,2,3].map(i=>yTop0+dyC-i*yGap);
+  const boxTop=boxTop0+dyC, boxBot=boxBot0+dyC;""")
+
 open(DST,'w').write(s)
 print('patched ok')
