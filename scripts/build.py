@@ -1362,7 +1362,7 @@ function textReport(){
   return rows;
 }""")
 rep("  dimStretchAt:(x,y)=>dimStretchAt(x,y), expandGroup:(ids)=>expandGroup(ids), secReport:()=>secReport(),",
-    "  dimStretchAt:(x,y)=>dimStretchAt(x,y), expandGroup:(ids)=>expandGroup(ids), secReport:()=>secReport(), textReport:()=>textReport(), selectionBBox:()=>selectionBBox(), bakeOffsets:(pg)=>bakeOffsets(pg), deleteSelection:()=>deleteSelection(), mm2px:(v)=>mm2px(v), persist:()=>persist(), defaultFormat:()=>loadDefaultFormat(), projects:()=>DB,\n  sheetFurnitureBox:(pg)=>sheetFurnitureBox(pg),")
+    "  dimStretchAt:(x,y)=>dimStretchAt(x,y), expandGroup:(ids)=>expandGroup(ids), insideGroup:()=>insideGroup(), secReport:()=>secReport(), textReport:()=>textReport(), selectionBBox:()=>selectionBBox(), bakeOffsets:(pg)=>bakeOffsets(pg), deleteSelection:()=>deleteSelection(), mm2px:(v)=>mm2px(v), persist:()=>persist(), defaultFormat:()=>loadDefaultFormat(), projects:()=>DB,\n  sheetFurnitureBox:(pg)=>sheetFurnitureBox(pg),")
 
 # ---- Shift on an object already selected means "keep it straight" -----------
 # Shift+click adds to the selection, which is right for an object that is NOT yet
@@ -1947,11 +1947,11 @@ function ungroupSelection(){ let any=false; snapshot();
   return out; }
 function groupSelection(){ if(selIds.size<2) return;
   const gid='u'+Math.random().toString(36).slice(2,10); snapshot();
-  selIds.forEach(id=>{ const o=objById(id); if(!o) return; o.group=gid;
+  selIds.forEach(id=>{ const o=objById(id); if(!o) return; o.group=gid; o.ug=true;
     primsOf(o).forEach(x=>{ x._grp=gid; }); });
   afterMutate(); toast('grouped'); }
 function ungroupSelection(){ let any=false; snapshot();
-  selIds.forEach(id=>{ const o=objById(id); if(o&&o.group){ o.group=null;
+  selIds.forEach(id=>{ const o=objById(id); if(o&&o.group){ o.group=null; o.ug=false;
     primsOf(o).forEach(x=>{ if(x._grp!=null) delete x._grp; }); any=true; } });
   if(any){ afterMutate(); toast('ungrouped'); } else history.undo.pop(); }""")
 
@@ -2260,6 +2260,86 @@ rep("""  const yTop=80.5*k, yGap=(8.5+4.6)*k;
   const boxTop=lineY[3]-(4.5+4.6)*k, boxBot=boxTop-8.8*k;""",
 """  const lineY=[0,1,2,3].map(i=>yTop0+dyC-i*yGap);
   const boxTop=boxTop0+dyC, boxBot=boxBot0+dyC;""")
+
+# ---- double-click steps INTO a group ----------------------------------------
+# A group is there so a view moves as one piece. But the moment one dimension in
+# it is wrong, the only way in was to ungroup, fix, and group again - and after
+# that the group is a different group. Double-clicking a group now steps inside
+# it: the piece under the cursor is selected on its own, and everything else in
+# the group is left alone. Esc, or a click outside, steps back out.
+#
+# Inside a group a dimension is still a dimension: clicking any part of one takes
+# the whole of it - line, arrows, extension lines and value - because a stray
+# extension line on its own is not a thing anyone means to select. Double-click
+# again on the value to edit the text, as before.
+rep("let selIds=new Set();",
+"""let selIds=new Set();
+/* the group we have stepped into, if any - only ever a group the user made */
+let _inGroup=null;
+function insideGroup(){ return _inGroup; }
+function leaveGroup(){ if(_inGroup){ _inGroup=null; return true; } return false; }""")
+
+# a group the user made is marked as such, so stepping in applies only to those
+rep("""    objs.push({ id:'o'+(_oidSeq++), dx:0, dy:0, group:grp, _dim:dim||null, _sec:sec||null,
+                _bal:bal||null, prims }); };""",
+"""    objs.push({ id:'o'+(_oidSeq++), dx:0, dy:0, group:grp, _dim:dim||null, _sec:sec||null,
+                _bal:bal||null, ug:!!(o&&o._grp), prims }); };""")
+
+rep("""function expandGroup(ids){
+  const objs=selectableObjs(); const groups=new Set();
+  ids.forEach(id=>{ const o=objById(id); if(o&&o.group) groups.add(o.group); });
+  const out=new Set(ids);
+  objs.forEach(o=>{ if(o.group&&groups.has(o.group)) out.add(o.id); });
+  return out;
+}""",
+"""function expandGroup(ids){
+  const objs=selectableObjs(); const groups=new Set(), parts=new Set();
+  ids.forEach(id=>{ const o=objById(id); if(!o) return;
+    if(o.group && o.group!==_inGroup) groups.add(o.group);
+    else { const tag=o._dim||o._sec||o._bal; if(tag) parts.add(tag); } });
+  const out=new Set(ids);
+  objs.forEach(o=>{
+    if(o.group && groups.has(o.group)){ out.add(o.id); return; }
+    /* inside the group, the unit is the dimension or the marker, not one of its
+       strokes */
+    if(_inGroup && o.group===_inGroup){
+      const tag=o._dim||o._sec||o._bal; if(tag && parts.has(tag)) out.add(o.id); }
+  });
+  return out;
+}""")
+
+rep("function clearSelection(){ selIds=new Set(); marquee=null; updateSelToolbar(); render(); }",
+    "function clearSelection(){ selIds=new Set(); marquee=null; _inGroup=null; updateSelToolbar(); render(); }")
+
+# stepping in
+rep("""      const ht=textAtPoint(w.x,w.y); if(ht){ startTextEdit(ht.ob,ht.t); return; } }""",
+"""      /* Step into a group before anything else - but only from outside it, so a
+         second double-click on a value still opens the text for editing. */
+      { const hit=objAtPoint(w.x,w.y);
+        if(hit && hit.ug && hit.group && hit.group!==_inGroup){
+          _inGroup=hit.group;
+          selIds=expandGroup(new Set([hit.id])); updateSelToolbar(); render();
+          toast('inside the group \u2014 Esc to leave');
+          return; } }
+      const ht=textAtPoint(w.x,w.y); if(ht){ startTextEdit(ht.ob,ht.t); return; } }""")
+
+# stepping back out: a click on anything that is not part of it
+rep("""    const hit=objAtPoint(w.x,w.y);
+    // Shift on something already selected = "drag me straight", not "deselect me"
+    const holdingSelected=(e.shiftKey && hit && selIds.has(hit.id));""",
+"""    const hit=objAtPoint(w.x,w.y);
+    // clicking anything outside the group we stepped into puts us back outside it
+    if(_inGroup && (!hit || hit.group!==_inGroup)) _inGroup=null;
+    // Shift on something already selected = "drag me straight", not "deselect me"
+    const holdingSelected=(e.shiftKey && hit && selIds.has(hit.id));""")
+
+# Esc leaves the group first, and only then drops the selection
+rep("    if(e.key==='Escape'){ clearSelection(); hideCtxMenu(); }",
+"""    if(e.key==='Escape'){
+      /* one step at a time: out of the group first, keeping what is selected, so
+         Esc undoes exactly what the double-click did */
+      if(leaveGroup()){ selIds=expandGroup(selIds); updateSelToolbar(); render(); hideCtxMenu(); }
+      else { clearSelection(); hideCtxMenu(); } }""")
 
 open(DST,'w').write(s)
 print('patched ok')

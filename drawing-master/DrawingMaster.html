@@ -12747,7 +12747,7 @@ function buildObjects(pg){
     else if(sec){ grp=dimGroups[sec] || (dimGroups[sec]='g'+(_gidSeq++)); }
     else if(bal){ grp=dimGroups[bal] || (dimGroups[bal]='g'+(_gidSeq++)); }
     objs.push({ id:'o'+(_oidSeq++), dx:0, dy:0, group:grp, _dim:dim||null, _sec:sec||null,
-                _bal:bal||null, prims }); };
+                _bal:bal||null, ug:!!(o&&o._grp), prims }); };
   items.forEach(it=>push(it.t,it.o));
   (d.clines||[]).forEach(c=>push('clines',c));
   pg.objects=objs;
@@ -13658,6 +13658,10 @@ function closeTextEdit(){ if(textEditEl){ textEditEl.blur(); } }
    SELECTION / DRAG / MARQUEE / GROUP / ALIGN  (vector editing)
    ============================================================ */
 let selIds=new Set();
+/* the group we have stepped into, if any - only ever a group the user made */
+let _inGroup=null;
+function insideGroup(){ return _inGroup; }
+function leaveGroup(){ if(_inGroup){ _inGroup=null; return true; } return false; }
 let marquee=null;
 let snapGuides=[];
 const SNAP_PX=6;
@@ -13709,10 +13713,18 @@ let objDrag=null;
 function selectableObjs(){ const pg=activePage(); return (pg&&pg.type==='sheet'&&pg.objects)?pg.objects:[]; }
 function objById(id){ return selectableObjs().find(o=>o.id===id); }
 function expandGroup(ids){
-  const objs=selectableObjs(); const groups=new Set();
-  ids.forEach(id=>{ const o=objById(id); if(o&&o.group) groups.add(o.group); });
+  const objs=selectableObjs(); const groups=new Set(), parts=new Set();
+  ids.forEach(id=>{ const o=objById(id); if(!o) return;
+    if(o.group && o.group!==_inGroup) groups.add(o.group);
+    else { const tag=o._dim||o._sec||o._bal; if(tag) parts.add(tag); } });
   const out=new Set(ids);
-  objs.forEach(o=>{ if(o.group&&groups.has(o.group)) out.add(o.id); });
+  objs.forEach(o=>{
+    if(o.group && groups.has(o.group)){ out.add(o.id); return; }
+    /* inside the group, the unit is the dimension or the marker, not one of its
+       strokes */
+    if(_inGroup && o.group===_inGroup){
+      const tag=o._dim||o._sec||o._bal; if(tag && parts.has(tag)) out.add(o.id); }
+  });
   return out;
 }
 function bomSelBBox(){
@@ -13754,7 +13766,7 @@ function objsInRect(x0,y0,x1,y1){
   return selectableObjs().filter(o=>{ const bb=objBBox(o); return bb && bb.minx>=a && bb.maxx<=c && bb.miny>=b && bb.maxy<=d; });
 }
 function setSelection(ids){ selIds=expandGroup(new Set(ids)); updateSelToolbar(); render(); }
-function clearSelection(){ selIds=new Set(); marquee=null; updateSelToolbar(); render(); }
+function clearSelection(){ selIds=new Set(); marquee=null; _inGroup=null; updateSelToolbar(); render(); }
 
 /* ============================================================================
    §6.3 STRETCHABLE PROJECTION LINES
@@ -14402,11 +14414,11 @@ function primsOf(o){ const P=(o&&o.prims)||{}, out=[];
   return out; }
 function groupSelection(){ if(selIds.size<2) return;
   const gid='u'+Math.random().toString(36).slice(2,10); snapshot();
-  selIds.forEach(id=>{ const o=objById(id); if(!o) return; o.group=gid;
+  selIds.forEach(id=>{ const o=objById(id); if(!o) return; o.group=gid; o.ug=true;
     primsOf(o).forEach(x=>{ x._grp=gid; }); });
   afterMutate(); toast('grouped'); }
 function ungroupSelection(){ let any=false; snapshot();
-  selIds.forEach(id=>{ const o=objById(id); if(o&&o.group){ o.group=null;
+  selIds.forEach(id=>{ const o=objById(id); if(o&&o.group){ o.group=null; o.ug=false;
     primsOf(o).forEach(x=>{ if(x._grp!=null) delete x._grp; }); any=true; } });
   if(any){ afterMutate(); toast('ungrouped'); } else history.undo.pop(); }
 function deleteSelection(){ if(!selIds.size) return; snapshot(); const pg=activePage();
@@ -15291,6 +15303,8 @@ function bindStage(){
         selIds=new Set(['bom']); updateSelToolbar();
         bomDrag={ type:'move', startX:w.x, startY:w.y, x0:pg.bom.x, y0:pg.bom.y, moved:false }; e.preventDefault(); render(); return; } }
     const hit=objAtPoint(w.x,w.y);
+    // clicking anything outside the group we stepped into puts us back outside it
+    if(_inGroup && (!hit || hit.group!==_inGroup)) _inGroup=null;
     // Shift on something already selected = "drag me straight", not "deselect me"
     const holdingSelected=(e.shiftKey && hit && selIds.has(hit.id));
     const additive=((e.shiftKey && !holdingSelected)||e.ctrlKey||e.metaKey);
@@ -15378,6 +15392,14 @@ function bindStage(){
     if(pg&&pg.type==='sheet'){ const tb=tbRect();
       if(w.x>=tb.x&&w.x<=tb.x+TB_W&&w.y>=tb.y&&w.y<=tb.y+TB_H){ openTitlePanel(); return; }
       const bb=bomBounds(pg); if(bb && w.x>=bb.x && w.x<=bb.x+bb.w && w.y<=bb.y && w.y>=bb.y-bb.h){ openBomPanel(); return; }
+      /* Step into a group before anything else - but only from outside it, so a
+         second double-click on a value still opens the text for editing. */
+      { const hit=objAtPoint(w.x,w.y);
+        if(hit && hit.ug && hit.group && hit.group!==_inGroup){
+          _inGroup=hit.group;
+          selIds=expandGroup(new Set([hit.id])); updateSelToolbar(); render();
+          toast('inside the group — Esc to leave');
+          return; } }
       const ht=textAtPoint(w.x,w.y); if(ht){ startTextEdit(ht.ob,ht.t); return; } }
     const z=zoneAt(w.x,w.y); if(z) startEdit(z);
   });
@@ -15430,8 +15452,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 04 Sep 08:47';
-       console.log('DrawingMaster — build 04 Sep 08:47'); }catch(e){}
+  try{ window.__build='build 04 Sep 09:18';
+       console.log('DrawingMaster — build 04 Sep 09:18'); }catch(e){}
   { const bb=$('#btnBalloon'); if(bb) bb.onclick=addBalloon; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }
@@ -15443,7 +15465,11 @@ function boot(){
     const tag=(e.target&&e.target.tagName)||''; if(tag==='INPUT'||tag==='TEXTAREA') return;
     const pg=activePage(); const onSheet=pg&&pg.type==='sheet';
     if(!onSheet) return;
-    if(e.key==='Escape'){ clearSelection(); hideCtxMenu(); }
+    if(e.key==='Escape'){
+      /* one step at a time: out of the group first, keeping what is selected, so
+         Esc undoes exactly what the double-click did */
+      if(leaveGroup()){ selIds=expandGroup(selIds); updateSelToolbar(); render(); hideCtxMenu(); }
+      else { clearSelection(); hideCtxMenu(); } }
     else if((e.key==='Delete'||e.key==='Backspace') && selIds.size){ e.preventDefault(); deleteSelection(); }
     else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='g'){ e.preventDefault(); e.shiftKey?ungroupSelection():groupSelection(); }
     else if(e.key.toLowerCase()==='g' && !e.ctrlKey && !e.metaKey){ e.preventDefault(); e.shiftKey?ungroupSelection():groupSelection(); }
@@ -15473,7 +15499,7 @@ window.__hook = ()=>({ get store(){return store;}, render, App:window.App, fitVi
   updateDimLineDrag:(x,y)=>updateDimLineDrag(x,y), dimAnalyse:(pg,id)=>dimAnalyse(pg,id),
   updateDimDrag:(x,y)=>updateDimDrag(x,y), endDimDrag:()=>endDimDrag(), entsToDXF:(e)=>entsToDXF(e),
   dimModels:(pg)=>dimModelsOf(pg), balModels:(pg)=>balModelsOf(pg),
-  dimStretchAt:(x,y)=>dimStretchAt(x,y), expandGroup:(ids)=>expandGroup(ids), secReport:()=>secReport(), textReport:()=>textReport(), selectionBBox:()=>selectionBBox(), bakeOffsets:(pg)=>bakeOffsets(pg), deleteSelection:()=>deleteSelection(), mm2px:(v)=>mm2px(v), persist:()=>persist(), defaultFormat:()=>loadDefaultFormat(), projects:()=>DB,
+  dimStretchAt:(x,y)=>dimStretchAt(x,y), expandGroup:(ids)=>expandGroup(ids), insideGroup:()=>insideGroup(), secReport:()=>secReport(), textReport:()=>textReport(), selectionBBox:()=>selectionBBox(), bakeOffsets:(pg)=>bakeOffsets(pg), deleteSelection:()=>deleteSelection(), mm2px:(v)=>mm2px(v), persist:()=>persist(), defaultFormat:()=>loadDefaultFormat(), projects:()=>DB,
   sheetFurnitureBox:(pg)=>sheetFurnitureBox(pg),
   usingIDB:()=>_useIDB, storageReport:()=>storageReport(), idbAll:()=>idbAll(), tbRect:()=>tbRect(),
   projSymAt:()=>{ const t=tbRect(); const X=(f)=>t.x+TB_W*f, Y=(f)=>t.y+TB_H*f;
