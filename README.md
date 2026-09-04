@@ -4,8 +4,6 @@
 
 Workflow : Import DXF → press STYLIZE → adjust as needed → Export PDF, ready to send to the factory.
 
-No install, no server — a single HTML file that opens instantly.
-
 ## Features
 
 | Feature | Description |
