@@ -8977,6 +8977,7 @@ const BOM_DEFS=[
   {key:'qty',       label:'QUANTITY',   short:'Quantity',   w:24},
   {key:'material',  label:'MATERIAL',   short:'Material',   w:26},
   {key:'finish',    label:'FINISH',     short:'Finish',     w:26},
+  {key:'color',     label:'COLOR',      short:'Color',      w:24},
   {key:'production',label:'PRODUCTION', short:'Production', w:30},
   {key:'parttype',  label:'PART TYPE',  short:'Part Type',  w:26},
   {key:'note',      label:'NOTE',       short:'Note',       w:28},
@@ -8993,7 +8994,7 @@ function bomHeadRowMM(){  return bomFontMM()  + bomRowPadMM()*2; }
 const BOM_PT_DOWN=2;                            /* points below the sheet text size */
 function bomFontMM(){ return Math.max(1.2, ((store.format.fontSize||10)-BOM_PT_DOWN)*PT_TO_MM); }
 function bomTitleMM(){ return (store.format.fontSize||10)*PT_TO_MM; }
-function bomRow(){ return {title:'',qty:'',material:'',finish:'',production:'',parttype:'',note:''}; }
+function bomRow(){ return {title:'',qty:'',material:'',finish:'',color:'',production:'',parttype:'',note:''}; }
 function bomDefaults(){
   const {W,H}=paperDims(); const m=store.format.margin;
   const cols={}, colW={}; BOM_DEFS.forEach(d=>{ cols[d.key]=(d.key!=='parttype'&&d.key!=='note'); colW[d.key]=d.w; });
@@ -15687,8 +15688,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 04 Sep 22:36';
-       console.log('DrawingMaster — build 04 Sep 22:36'); }catch(e){}
+  try{ window.__build='build 04 Sep 22:51';
+       console.log('DrawingMaster — build 04 Sep 22:51'); }catch(e){}
   { const bs=$('#btnSpecial'); if(bs) bs.onclick=openSpecialMenu; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }

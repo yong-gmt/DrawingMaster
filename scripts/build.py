@@ -2686,5 +2686,17 @@ rep("  let tw; try{ ctx.save(); ctx.font=`${FW}${hpx}px ${store.format.font},Ari
 rep("""  font-family:'Inter','Segoe UI',system-ui,-apple-system,'Sarabun',sans-serif;-webkit-font-smoothing:antialiased}""",
     """  font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}""")
 
+# ---- the parts list carries Colour too -------------------------------------
+# It sits beside Material and Finish in the title block and it belongs beside them
+# in the parts list, on by default like the rest of that group. A table already on
+# a page keeps the columns it was given - turning a new one on would widen it
+# without being asked, possibly off the paper - and the chip in the panel switches
+# it on for those.
+rep("""  {key:'finish',    label:'FINISH',     short:'Finish',     w:26},""",
+    """  {key:'finish',    label:'FINISH',     short:'Finish',     w:26},
+  {key:'color',     label:'COLOR',      short:'Color',      w:24},""")
+rep("function bomRow(){ return {title:'',qty:'',material:'',finish:'',production:'',parttype:'',note:''}; }",
+    "function bomRow(){ return {title:'',qty:'',material:'',finish:'',color:'',production:'',parttype:'',note:''}; }")
+
 open(DST,'w').write(s)
 print('patched ok')
