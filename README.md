@@ -1,11 +1,15 @@
 # Drawing Master
 
-A single-file web CAD tool. It reads a DXF drawing, restyles the annotation to
-drawing-office conventions, and writes DXF that another CAD program can open and
-edit — real `DIMENSION` entities, real layers, real line types.
+Drawing Master aligns drawings from different CAD programs (Fusion 360, Inventor) into one consistent format — drawing style, BOM table, and title block all following GMT's standard. Sheet layout stays fully flexible.
+Workflow: Import DXF → press STYLIZE → adjust as needed → Export PDF, ready to send to the factory.
 
-No server, no build step for the user: the output is one HTML file you open in a
-browser.
+-Features-
+
+STYLIZE : Fixes dimension and section lines into a horizontal landing (ANSI) style.
+Add Label : Adds labels to identify the different views on a drawing.
+Add Balloon : Adds numbered pointer balloons to call out parts.
+Add BOM : Adds a Bill of Materials, with selectable fields to display.
+Title Block : A GMT-specific title block, with editable part details on every sheet.
 
 ---
 
