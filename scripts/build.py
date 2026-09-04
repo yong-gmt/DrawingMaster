@@ -2449,5 +2449,8 @@ rep("""  }catch(err){ console.warn('project migration failed', err); }""",
   if(store.format){ const fm=frameMargin(store.format.paper);
     if(store.format.margin!==fm){ store.format.margin=fm; persist(); } }""")
 
+# ---- the heading spells the thing it heads ---------------------------------
+rep("      <h3>Title Bolck</h3>", "      <h3>Title Block</h3>")
+
 open(DST,'w').write(s)
 print('patched ok')
