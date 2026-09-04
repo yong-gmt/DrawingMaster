@@ -1846,8 +1846,13 @@ rep("""function openFormat(){
   /* The panel draws its previews from the open project. On the dashboard there is
      none, so it is given a throwaway one to look at - discarded on the way out,
      which is why nothing here can reach a real project. */
-  if(fmtEditingDefaults && !store){
-    fmtBorrowedStore=true;
+  if(fmtEditingDefaults){
+    /* ALWAYS a throwaway, not only when no project is open. goDashboard leaves
+       the last project in `store`, so borrowing only when there was none meant
+       the defaults panel showed - and previewed - whatever project had been
+       opened last. The defaults belong to no project, so they are shown against
+       one that does not exist. It is never in DB, so persist can never write it. */
+    fmtPrevStore=store; fmtBorrowedStore=true;
     store=newProject('Project');
     store.format=blankFormat();
   }
@@ -1888,13 +1893,13 @@ rep("""function closeFormat(save){
     afterMutate(); fitView(); }
   if(fmtDraft) delete fmtDraft.__project;
   fmtDraft=null; fmtEditingDefaults=false;
-  if(fmtBorrowedStore){ store=null; fmtBorrowedStore=false; }
+  if(fmtBorrowedStore){ store=fmtPrevStore||null; fmtPrevStore=null; fmtBorrowedStore=false; }
   $('#formatView').classList.add('hide');
   const bd=$('#editor .body'); if(bd) bd.style.visibility='';
   const onDash=!$('#dashboard').classList.contains('hide');
   if(!onDash) render();
 }""")
-rep("let fmtDraft=null;", "let fmtDraft=null, fmtEditingDefaults=false, fmtBorrowedStore=false;")
+rep("let fmtDraft=null;", "let fmtDraft=null, fmtEditingDefaults=false, fmtBorrowedStore=false, fmtPrevStore=null;")
 
 rep("  $('#btnCreate').onclick=createProject;",
     """  $('#btnCreate').onclick=createProject;
@@ -2566,6 +2571,12 @@ rep("""  balBake(pg,m);
   const [ox,oy]=balLiveOffset(pg,m);
   return [ {m, kind:'balC', at:[m.c[0]+ox, m.c[1]+oy]},
            {m, kind:'balTip', at:[m.tip[0]+ox, m.tip[1]+oy]} ];""")
+
+# ---- the defaults panel names no project ------------------------------------
+# Belt as well as braces: the field is told what to say outright, so it cannot
+# follow a project name by any route at all.
+rep("""        <div class="f-field"><label>Project</label><input class="inp2" id="fProject"${perDwg} placeholder="Working Drawing" value="${(store.name||'')}"></div>""",
+    """        <div class="f-field"><label>Project</label><input class="inp2" id="fProject"${perDwg} placeholder="Working Drawing" value="${fmtEditingDefaults? 'Project' : esc(store.name||'')}"></div>""")
 
 open(DST,'w').write(s)
 print('patched ok')

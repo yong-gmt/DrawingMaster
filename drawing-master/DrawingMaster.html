@@ -14881,15 +14881,20 @@ function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w
    Part No., Material, Finish, Colour) are shown read-only here.
    ============================================================ */
 const FONTS=['Arial','Sarabun','Consolas'];   /* one sans, one Thai, one monospace */
-let fmtDraft=null, fmtEditingDefaults=false, fmtBorrowedStore=false;
+let fmtDraft=null, fmtEditingDefaults=false, fmtBorrowedStore=false, fmtPrevStore=null;
 
 function openFormat(defaults){
   fmtEditingDefaults=!!defaults;
   /* The panel draws its previews from the open project. On the dashboard there is
      none, so it is given a throwaway one to look at - discarded on the way out,
      which is why nothing here can reach a real project. */
-  if(fmtEditingDefaults && !store){
-    fmtBorrowedStore=true;
+  if(fmtEditingDefaults){
+    /* ALWAYS a throwaway, not only when no project is open. goDashboard leaves
+       the last project in `store`, so borrowing only when there was none meant
+       the defaults panel showed - and previewed - whatever project had been
+       opened last. The defaults belong to no project, so they are shown against
+       one that does not exist. It is never in DB, so persist can never write it. */
+    fmtPrevStore=store; fmtBorrowedStore=true;
     store=newProject('Project');
     store.format=blankFormat();
   }
@@ -14925,7 +14930,7 @@ function closeFormat(save){
     afterMutate(); fitView(); }
   if(fmtDraft) delete fmtDraft.__project;
   fmtDraft=null; fmtEditingDefaults=false;
-  if(fmtBorrowedStore){ store=null; fmtBorrowedStore=false; }
+  if(fmtBorrowedStore){ store=fmtPrevStore||null; fmtPrevStore=null; fmtBorrowedStore=false; }
   $('#formatView').classList.add('hide');
   const bd=$('#editor .body'); if(bd) bd.style.visibility='';
   const onDash=!$('#dashboard').classList.contains('hide');
@@ -14991,7 +14996,7 @@ function renderFormatView(){
     <div class="tb-sec">
       <h3>Title Block</h3>
       <div class="g2">
-        <div class="f-field"><label>Project</label><input class="inp2" id="fProject"${perDwg} placeholder="Working Drawing" value="${(store.name||'')}"></div>
+        <div class="f-field"><label>Project</label><input class="inp2" id="fProject"${perDwg} placeholder="Working Drawing" value="${fmtEditingDefaults? 'Project' : esc(store.name||'')}"></div>
         <div class="f-field"><label>Title</label><input class="inp2" id="fTitle"${perDwg} placeholder="Title" value="${f.title||''}"></div>
       </div>
       <div class="g4">
@@ -15657,8 +15662,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 04 Sep 18:03';
-       console.log('DrawingMaster — build 04 Sep 18:03'); }catch(e){}
+  try{ window.__build='build 04 Sep 18:27';
+       console.log('DrawingMaster — build 04 Sep 18:27'); }catch(e){}
   { const bs=$('#btnSpecial'); if(bs) bs.onclick=openSpecialMenu; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }
