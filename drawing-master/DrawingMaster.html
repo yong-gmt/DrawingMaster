@@ -8084,7 +8084,7 @@ function saveDefaultFormat(f){
 }
 function factoryFormat(){
   return {
-    paper:'A4', margin:10, font:'Arial', fontSize:10, decimals:2, stroke:0.2,
+    paper:'A4', margin:frameMargin('A4'), font:'Arial', fontSize:10, decimals:2, stroke:0.2,
     ansiRadius:true, ansiSection:true,
     docType:'WORKING DRAWINGS', company:'General Magick (Thailand) Co., LTD',
     version:'', scale:'1:1',
@@ -8317,6 +8317,11 @@ function afterMutate(skipSnap){ renderSidebar(); syncNavName(); render(); persis
    GEOMETRY HELPERS
    ============================================================ */
 function paperDims(){ const p=PAPERS[store.format.paper]||PAPERS.A4; return { W:p[0], H:p[1] }; }
+/* The frame margin is not a setting any more - it is a function of the paper. */
+const FRAME_MARGIN={A4:5};
+function frameMargin(paper){
+  const m=FRAME_MARGIN[paper]; return m===undefined? 10 : m;
+}
 function activePage(){ return store.pages.find(p=>p.id===store.activeId) || store.pages[0]; }
 function mm2px(mm){ return mm*view.s; }
 function W2S(x,y){ return { x:x*view.s+view.tx, y:-y*view.s+view.ty }; }   // world(mm,Y-up) -> screen(px,Y-down)
@@ -14705,11 +14710,12 @@ function openFormat(defaults){
      which is why nothing here can reach a real project. */
   if(fmtEditingDefaults && !store){
     fmtBorrowedStore=true;
-    store=newProject('New Project');
+    store=newProject('Project');
     store.format=blankFormat();
   }
   fmtDraft=JSON.parse(JSON.stringify(
     fmtEditingDefaults ? blankFormat() : store.format));
+  fmtDraft.margin=frameMargin(fmtDraft.paper);
   if(!fmtDraft.approvals) fmtDraft.approvals={design:{name:'',date:''},drawn:{name:'',date:''},approved:{name:'',date:''}};
   renderFormatView();
   const bd=$('#editor .body'); if(bd) bd.style.visibility='hidden';
@@ -14762,7 +14768,7 @@ function renderFormatView(){
             <div class="f-field"><label>Size</label>
               <select class="inp2" id="fPaper">${opt(Object.keys(PAPERS),f.paper)}</select></div>
             <div class="f-field"><label>Frame Margin</label>
-              <div class="with-u"><input class="inp2" id="fMargin" type="number" min="0" step="1" value="${f.margin}"><span class="u">mm</span></div></div>
+              <div class="with-u"><input class="inp2" id="fMargin" type="number" disabled value="${frameMargin(f.paper)}"><span class="u">mm</span></div></div>
           </div>
         </div>
         <div class="fmt-sec">
@@ -14838,8 +14844,8 @@ function renderFormatView(){
 function bindFormat(){
   const f=fmtDraft;
   const on=(id,ev,fn)=>{ const e=$('#'+id); if(e) e.addEventListener(ev,fn); };
-  on('fPaper','change',e=>{ f.paper=e.target.value; updateFormatPreviews(); });
-  on('fMargin','input',e=>{ f.margin=Math.max(0,+e.target.value||0); updateFormatPreviews(); });
+  on('fPaper','change',e=>{ f.paper=e.target.value; f.margin=frameMargin(f.paper);
+    const mi=$('#fMargin'); if(mi) mi.value=f.margin; updateFormatPreviews(); });
   on('fFont','change',e=>{ f.font=e.target.value; updateFormatPreviews(); });
   on('fSize','input',e=>{ f.fontSize=+e.target.value||10; updateFormatPreviews(); });
   on('fDec','change',e=>{ f.decimals=+e.target.value; updateFormatPreviews(); });
@@ -15161,6 +15167,8 @@ function openProject(id){
       buildObjects(pg); dimRelayout(pg); secRelayout(pg); } }); persist();
       console.log('project brought up to date:', n, 'models'); }
   }catch(err){ console.warn('project migration failed', err); }
+  if(store.format){ const fm=frameMargin(store.format.paper);
+    if(store.format.margin!==fm){ store.format.margin=fm; persist(); } }
   history={undo:[],redo:[]};
   $('#dashboard').classList.add('hide'); $('#editor').classList.remove('hide'); $('#formatView').classList.add('hide');
   syncNavName(); renderSidebar();
@@ -15460,8 +15468,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 04 Sep 15:15';
-       console.log('DrawingMaster — build 04 Sep 15:15'); }catch(e){}
+  try{ window.__build='build 04 Sep 15:39';
+       console.log('DrawingMaster — build 04 Sep 15:39'); }catch(e){}
   { const bb=$('#btnBalloon'); if(bb) bb.onclick=addBalloon; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }

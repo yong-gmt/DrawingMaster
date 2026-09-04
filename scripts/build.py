@@ -1848,7 +1848,7 @@ rep("""function openFormat(){
      which is why nothing here can reach a real project. */
   if(fmtEditingDefaults && !store){
     fmtBorrowedStore=true;
-    store=newProject('New Project');
+    store=newProject('Project');
     store.format=blankFormat();
   }
   fmtDraft=JSON.parse(JSON.stringify(
@@ -2408,6 +2408,46 @@ rep("""        <input class="inp2" data-ap="${k}" data-fld="d" placeholder="DD" 
 """        <input class="inp2" data-ap="${k}" data-fld="d"${perDwg} placeholder="DD" value="${t.d}">
         <input class="inp2" data-ap="${k}" data-fld="m"${perDwg} placeholder="MM" value="${t.m}">
         <input class="inp2" data-ap="${k}" data-fld="y"${perDwg} placeholder="YYYY" value="${t.y}">""")
+
+# ---- the frame margin follows the sheet size -------------------------------
+# It was a free number, so the same office could end up with a different frame on
+# every drawing. It is now decided by the paper: 5 mm on A4, 10 mm on anything
+# larger. One function decides it, the field shows what it decided, and a project
+# saved before this rule is brought into line when it is opened - otherwise the
+# locked field would sit there disagreeing with the frame drawn beside it.
+rep("function paperDims(){ const p=PAPERS[store.format.paper]||PAPERS.A4; return { W:p[0], H:p[1] }; }",
+"""function paperDims(){ const p=PAPERS[store.format.paper]||PAPERS.A4; return { W:p[0], H:p[1] }; }
+/* The frame margin is not a setting any more - it is a function of the paper. */
+const FRAME_MARGIN={A4:5};
+function frameMargin(paper){
+  const m=FRAME_MARGIN[paper]; return m===undefined? 10 : m;
+}""")
+
+rep("    paper:'A4', margin:10, font:'Arial', fontSize:10, decimals:2, stroke:0.2,",
+    "    paper:'A4', margin:frameMargin('A4'), font:'Arial', fontSize:10, decimals:2, stroke:0.2,")
+
+rep("""            <div class="f-field"><label>Frame Margin</label>
+              <div class="with-u"><input class="inp2" id="fMargin" type="number" min="0" step="1" value="${f.margin}"><span class="u">mm</span></div></div>""",
+"""            <div class="f-field"><label>Frame Margin</label>
+              <div class="with-u"><input class="inp2" id="fMargin" type="number" disabled value="${frameMargin(f.paper)}"><span class="u">mm</span></div></div>""")
+
+rep("""  on('fPaper','change',e=>{ f.paper=e.target.value; updateFormatPreviews(); });
+  on('fMargin','input',e=>{ f.margin=Math.max(0,+e.target.value||0); updateFormatPreviews(); });""",
+"""  on('fPaper','change',e=>{ f.paper=e.target.value; f.margin=frameMargin(f.paper);
+    const mi=$('#fMargin'); if(mi) mi.value=f.margin; updateFormatPreviews(); });""")
+
+# the draft is brought into line before it is drawn, so the preview and the field agree
+rep("""  fmtDraft=JSON.parse(JSON.stringify(
+    fmtEditingDefaults ? blankFormat() : store.format));""",
+"""  fmtDraft=JSON.parse(JSON.stringify(
+    fmtEditingDefaults ? blankFormat() : store.format));
+  fmtDraft.margin=frameMargin(fmtDraft.paper);""")
+
+# and so is a project saved while the margin was still something a person typed
+rep("""  }catch(err){ console.warn('project migration failed', err); }""",
+"""  }catch(err){ console.warn('project migration failed', err); }
+  if(store.format){ const fm=frameMargin(store.format.paper);
+    if(store.format.margin!==fm){ store.format.margin=fm; persist(); } }""")
 
 open(DST,'w').write(s)
 print('patched ok')
