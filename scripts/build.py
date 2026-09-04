@@ -2341,5 +2341,43 @@ rep("    if(e.key==='Escape'){ clearSelection(); hideCtxMenu(); }",
       if(leaveGroup()){ selIds=expandGroup(selIds); updateSelToolbar(); render(); hideCtxMenu(); }
       else { clearSelection(); hideCtxMenu(); } }""")
 
+# ---- the tolerance table lines up on one left edge --------------------------
+# "+-  x.x" was one string starting further left than "x.xx"/"x.xxx", so the
+# three tolerance labels each began at a different place. The sign is now drawn
+# on its own and all three labels share the same left edge. The values are the
+# usual one-decimal-per-place run: 0.1 / 0.05 / 0.02.
+rep("""  [['+-  x.x',0.327,0.306],['x.xx',0.341,0.382],['x.xxx',0.341,0.452]].forEach(([txt,fx,fy])=>
+    T(X(fx), Y(fy), txt,1.20,false,'l'));
+  [['0.2',0.306],['0.05',0.382],['0.02',0.452]].forEach(([v,fy])=>
+    T(X(0.372), Y(fy), v,1.20,false,'l'));""",
+"""  T(X(0.327), Y(0.306), '+-',1.20,false,'l');
+  [['x.x',0.306],['x.xx',0.382],['x.xxx',0.452]].forEach(([txt,fy])=>
+    T(X(0.341), Y(fy), txt,1.20,false,'l'));
+  [['0.1',0.306],['0.05',0.382],['0.02',0.452]].forEach(([v,fy])=>
+    T(X(0.372), Y(fy), v,1.20,false,'l'));""")
+
+# ---- Drawing No. says what shape it wants ----------------------------------
+# The field's placeholder repeated its own label, which told the user nothing.
+# It now shows the pattern itself, and an info mark beside the label spells the
+# pattern out on hover for anyone who cannot read PRJ-VER-PRT-XX at a glance.
+rep(" 'bullseye':'<circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"1.5\"/>'\n};",
+    " 'bullseye':'<circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"1.5\"/>',\n"
+    " 'info-circle':'<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11.2v5\"/>'\n"
+    "   + '<circle cx=\"12\" cy=\"7.9\" r=\"0.9\" fill=\"currentColor\" stroke=\"none\"/>'\n};")
+
+rep(".rp-inp::placeholder{color:#aeb8c6}",
+    """.rp-inp::placeholder{color:#aeb8c6}
+/* the info mark that follows a field label - hover for what the field expects */
+.lab-info{display:inline-flex;vertical-align:-2px;margin-left:5px;font-size:.92em;color:#9aa3b0;cursor:help}
+.lab-info:hover{color:#5b6472}""")
+
+rep("""    <div class="grp"><label>Drawing No.</label>
+      <input class="rp-inp" id="tbDraw" placeholder="Drawing No." value="${esc(t.drawingNo)}"></div>""",
+"""    <div class="grp"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label>
+      <input class="rp-inp" id="tbDraw" placeholder="PRJ-VER-PRT-XX" value="${esc(t.drawingNo)}"></div>""")
+
+rep("""<div class="f-field"><label>Drawing No.</label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>""",
+    """<div class="f-field"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>""")
+
 open(DST,'w').write(s)
 print('patched ok')

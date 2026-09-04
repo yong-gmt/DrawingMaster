@@ -196,6 +196,9 @@ textarea.inline-edit{resize:none;overflow:hidden}
   padding:0 13px;font-size:15px;outline:none;font-family:inherit}
 .rp-inp:focus{border-color:#8b95a6}
 .rp-inp::placeholder{color:#aeb8c6}
+/* the info mark that follows a field label - hover for what the field expects */
+.lab-info{display:inline-flex;vertical-align:-2px;margin-left:5px;font-size:.92em;color:#9aa3b0;cursor:help}
+.lab-info:hover{color:#5b6472}
 .field{margin-bottom:13px}
 .field label{font-size:13px;color:var(--txt2);font-weight:600;margin-bottom:6px;display:block}
 .inp{width:100%;background:#fff;border:1px solid var(--line2);color:var(--txt);border-radius:9px;font-size:14px;
@@ -8035,7 +8038,9 @@ const ICON={
  'align-top':'<path d="M3 4h18"/><path d="M7 8v11"/><path d="M17 8v7"/>',
  'align-middle':'<path d="M3 12h18"/><path d="M7 6.5v11"/><path d="M17 8.5v7"/>',
  'align-bottom':'<path d="M3 20h18"/><path d="M7 5v11"/><path d="M17 9v7"/>',
- 'bullseye':'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>'
+ 'bullseye':'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+ 'info-circle':'<circle cx="12" cy="12" r="9"/><path d="M12 11.2v5"/>'
+   + '<circle cx="12" cy="7.9" r="0.9" fill="currentColor" stroke="none"/>'
 };
 function svgIcon(name){
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ICON[name]||''}</svg>`;
@@ -13040,9 +13045,10 @@ function drawTitleBlock(page){
   /* ---------------- middle: tolerances / scale ---------------- */
   T(X(FX.ap)+0.9, Y(0.102), 'UNLESS OTHERWISE SPECIFIED DIMENSIONS',1.48,false,'l',TB_W*(FX.tol-FX.ap)-1.8);
   T(X(FX.ap)+0.9, Y(0.199), 'ARE IN MILLIMETERS TOLERANCES ARE:',1.48,false,'l',TB_W*(FX.tol-FX.ap)-1.8);
-  [['+-  x.x',0.327,0.306],['x.xx',0.341,0.382],['x.xxx',0.341,0.452]].forEach(([txt,fx,fy])=>
-    T(X(fx), Y(fy), txt,1.20,false,'l'));
-  [['0.2',0.306],['0.05',0.382],['0.02',0.452]].forEach(([v,fy])=>
+  T(X(0.327), Y(0.306), '+-',1.20,false,'l');
+  [['x.x',0.306],['x.xx',0.382],['x.xxx',0.452]].forEach(([txt,fy])=>
+    T(X(0.341), Y(fy), txt,1.20,false,'l'));
+  [['0.1',0.306],['0.05',0.382],['0.02',0.452]].forEach(([v,fy])=>
     T(X(0.372), Y(fy), v,1.20,false,'l'));
   T(X(FX.ap)+0.8, Y(0.602), 'SCALE',1.65,false,'l');
   T((X(FX.ap)+X(FX.scl))/2, Y(0.747), t.scale||f.scale||'1:1',2.21,true,'c',TB_W*(FX.scl-FX.ap)-2.4);
@@ -13183,8 +13189,8 @@ function openTitlePanel(){
       <div><label>Part No.</label><input class="rp-inp" id="tbPart" placeholder="No." value="${esc(t.partNo)}"></div>
       <div><label>Version</label><input class="rp-inp" id="tbVer" placeholder="Version" value="${esc(t.version)}"></div>
     </div>
-    <div class="grp"><label>Drawing No.</label>
-      <input class="rp-inp" id="tbDraw" placeholder="Drawing No." value="${esc(t.drawingNo)}"></div>
+    <div class="grp"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label>
+      <input class="rp-inp" id="tbDraw" placeholder="PRJ-VER-PRT-XX" value="${esc(t.drawingNo)}"></div>
     <div class="grp row2">
       <div><label>Scale</label><div class="scalerow">
         <input class="rp-inp" id="tbScale1" value="${esc(sc[0]||'1')}">
@@ -14795,7 +14801,7 @@ function renderFormatView(){
         <div class="f-field"><label>Title</label><input class="inp2" id="fTitle" placeholder="Title" value="${f.title||''}"></div>
       </div>
       <div class="g4">
-        <div class="f-field"><label>Drawing No.</label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>
+        <div class="f-field"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>
         <div class="f-field"><label>Part No.</label><input class="inp2" disabled placeholder="No."></div>
         <div class="f-field"><label>Version</label><input class="inp2" id="fVersion" placeholder="Version" value="${f.version||''}"></div>
         <div class="f-field"><label>Scale</label>
@@ -15452,8 +15458,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 04 Sep 09:18';
-       console.log('DrawingMaster — build 04 Sep 09:18'); }catch(e){}
+  try{ window.__build='build 04 Sep 12:50';
+       console.log('DrawingMaster — build 04 Sep 12:50'); }catch(e){}
   { const bb=$('#btnBalloon'); if(bb) bb.onclick=addBalloon; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }
