@@ -2578,5 +2578,113 @@ rep("""  balBake(pg,m);
 rep("""        <div class="f-field"><label>Project</label><input class="inp2" id="fProject"${perDwg} placeholder="Working Drawing" value="${(store.name||'')}"></div>""",
     """        <div class="f-field"><label>Project</label><input class="inp2" id="fProject"${perDwg} placeholder="Working Drawing" value="${fmtEditingDefaults? 'Project' : esc(store.name||'')}"></div>""")
 
+# ---- Title and Version reach the sheet the way Scale already did -----------
+# Scale was already a project-wide default that each sheet could override; Title
+# and Version were not, so a title typed into Format Config went nowhere and the
+# sheet panel opened blank. All three now behave alike: the panel opens showing
+# what the project says, and typing there sets THAT SHEET only - the project's own
+# value is never written back.
+rep("""    <div class="grp"><label>Title</label>
+      <input class="rp-inp" id="tbTitle" placeholder="Title" value="${esc(t.title)}"></div>""",
+"""    <div class="grp"><label>Title</label>
+      <input class="rp-inp" id="tbTitle" placeholder="Title" value="${esc(t.title||f.title||'')}"></div>""")
+rep("""      <div><label>Version</label><input class="rp-inp" id="tbVer" placeholder="Version" value="${esc(t.version)}"></div>""",
+"""      <div><label>Version</label><input class="rp-inp" id="tbVer" placeholder="Version" value="${esc(t.version||f.version||'')}"></div>""")
+# the panel needs the project's settings in scope to fall back to them
+rep("""function openTitlePanel(){
+  const pg=activePage(); if(pg.type!=='sheet') return;
+  const t=pg.title||(pg.title={});""",
+"""function openTitlePanel(){
+  const pg=activePage(); if(pg.type!=='sheet') return;
+  const t=pg.title||(pg.title={});
+  const f=store.format||{};""")
+
+# and the sheet itself falls back the same way, so a title typed into Format
+# Config appears on every sheet that has not been given one of its own
+rep("  LB(FX.tol,0,'TITLE');    VAL(FX.tol,FX.part,0,FY.b1,(t.title||'TITLE').toUpperCase(),3.34,true);",
+    "  LB(FX.tol,0,'TITLE');    VAL(FX.tol,FX.part,0,FY.b1,(t.title||f.title||'TITLE').toUpperCase(),3.34,true);")
+
+# ---- Format Config shows the title only while the sheets agree on one -------
+# It is the PROJECT's title. Once the sheets have been given titles of their own
+# and those titles differ, there is no project title any more, and a box still
+# showing one of them would be claiming something untrue. So it goes back to
+# empty - the state it was in before anybody typed.
+rep("""function renderFormatView(){
+  const f=fmtDraft, ap=f.approvals;""",
+"""function renderFormatView(){
+  const f=fmtDraft, ap=f.approvals;
+  {
+    /* The project's title is never taken FROM a sheet - editing a sheet's title
+       must not rewrite the project's. But once several sheets have been given
+       titles of their own and those titles disagree, there is no project title
+       left to state, and a box still showing the old one would be claiming
+       something untrue. In that one case it goes back to empty. */
+    const own=((store&&store.pages)||[]).filter(p=>p.type==='sheet')
+      .map(p=>(p.title&&p.title.title)||'');
+    const diverged = own.length>1 && !own.every(v=>v===own[0]);
+    if(diverged) f.title='';
+  }""")
+
+# ---- the font list must contain fonts the page actually has ----------------
+# Sarabun was offered in Typography and never fetched: measuring it gave exactly
+# the width of the default serif, which is what a missing family falls back to.
+# Every drawing set to Sarabun was therefore drawn in something else, and the
+# preview disagreed with the choice above it - not because the preview was wrong,
+# but because the font was never there. It is fetched now, alongside Inter.
+rep("""<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">""",
+    """<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap">""")
+# A web font arrives after the first paint, and canvas text does not re-flow when
+# it does - the sheet would keep the fallback until something else forced a redraw.
+rep("""function boot(){
+  cv=$('#cv'); ctx=cv.getContext('2d'); stage=$('#stage');""",
+"""function boot(){
+  cv=$('#cv'); ctx=cv.getContext('2d'); stage=$('#stage');
+  /* canvas text does not re-flow when a web font finally arrives - redraw it */
+  try{ if(document.fonts && document.fonts.ready)
+    document.fonts.ready.then(()=>{ try{ render(); if(fmtDraft) updateFormatPreviews(); }catch(e){} }); }
+  catch(e){}""")
+# and when the choice is changed, wait for that family before redrawing the preview
+rep("  on('fFont','change',e=>{ f.font=e.target.value; updateFormatPreviews(); });",
+    """  on('fFont','change',e=>{ f.font=e.target.value; updateFormatPreviews();
+    /* the first preview after a change can still be the fallback: ask for the
+       family, then draw again once it is really there */
+    try{ if(document.fonts) document.fonts.load('700 40px "'+f.font+'"')
+      .then(()=>{ if(fmtDraft) updateFormatPreviews(); }).catch(()=>{}); }catch(err){} });""")
+
+# ---- you type in the app's font, not the drawing's --------------------------
+# The boxes you type into - the label editor over the canvas and the cover /
+# description zones - were set to the DRAWING's font. Choose Consolas for the
+# sheet and Thai went to whatever the browser could find instead, because a
+# monospace face meant for code carries no Thai: the text being typed was
+# unreadable while the same text on the paper was fine. What is DRAWN keeps
+# following the choice in Typography; the interface keeps its own font.
+rep("function measureMM(text,hmm,bold){",
+"""/* The interface's own font, read back from the page so the two cannot drift. */
+function uiFont(){
+  try{ return getComputedStyle(document.body).fontFamily || "'Inter',sans-serif"; }
+  catch(e){ return "'Inter',sans-serif"; }
+}
+function measureMM(text,hmm,bold){""")
+
+# both editors go through these two, so this is the whole of it
+rep("  try{ ctx.save(); ctx.font=(bold?'700 ':'400 ')+fontPx+'px '+store.format.font+',Arial';",
+    "  try{ ctx.save(); ctx.font=(bold?'700 ':'400 ')+fontPx+'px '+uiFont();")
+rep("  el.style.font=(o.bold?'700 ':'400 ')+f+'px '+store.format.font+',Arial';",
+    "  el.style.font=(o.bold?'700 ':'400 ')+f+'px '+uiFont();")
+rep("  let tw; try{ ctx.save(); ctx.font=`${FW}${hpx}px ${store.format.font},Arial`; tw=ctx.measureText(String(t.text||'')||'M').width; ctx.restore(); }",
+    "  let tw; try{ ctx.save(); ctx.font=`${FW}${hpx}px ${uiFont()}`; tw=ctx.measureText(String(t.text||'')||'M').width; ctx.restore(); }")
+
+# ---- Sarabun is a DRAWING font, not an interface one ------------------------
+# It was named in the interface's own stack as well. That did nothing while the
+# family was never fetched, but now that it is, Chrome walks the declared list for
+# a Thai character - Inter has no Thai, and it does not use Windows' font linking
+# to give "Segoe UI" any - so it reached Sarabun and drew every Thai label,
+# placeholder and typing box in it. Thai in the interface belongs to the interface,
+# so the list ends at sans-serif and the platform decides, exactly as it does for
+# every other Thai app. Sarabun stays a choice for the DRAWING, where it is loaded
+# and where somebody asked for it on purpose.
+rep("""  font-family:'Inter','Segoe UI',system-ui,-apple-system,'Sarabun',sans-serif;-webkit-font-smoothing:antialiased}""",
+    """  font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}""")
+
 open(DST,'w').write(s)
 print('patched ok')

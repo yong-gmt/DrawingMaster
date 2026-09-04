@@ -6,7 +6,7 @@
 <title>Drawing Master</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap">
 <style>
 /* ============================================================
    DRAWING MASTER — fresh build (single file, vanilla)
@@ -38,7 +38,7 @@
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--txt);overflow:hidden;
-  font-family:'Inter','Segoe UI',system-ui,-apple-system,'Sarabun',sans-serif;-webkit-font-smoothing:antialiased}
+  font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
 .hide{display:none!important}
 button{font-family:inherit}
 
@@ -8372,6 +8372,11 @@ function resizeCanvas(){
    TEXT METRICS (mm) — Font Metric Simulation (PRD §0.1)
    ============================================================ */
 const _mc = document.createElement('canvas').getContext('2d');
+/* The interface's own font, read back from the page so the two cannot drift. */
+function uiFont(){
+  try{ return getComputedStyle(document.body).fontFamily || "'Inter',sans-serif"; }
+  catch(e){ return "'Inter',sans-serif"; }
+}
 function measureMM(text,hmm,bold){ _mc.font=`${bold?'700':'400'} ${hmm}px ${store.format.font},Arial`;
   return _mc.measureText(text).width; }              // hmm in px==mm space (ratio cancels)
 function setFont(hmm,bold){ ctx.font=`${bold?'700':'400'} ${mm2px(hmm)}px ${store.format.font},Arial`; }
@@ -13240,7 +13245,7 @@ function drawTitleBlock(page){
   CEN(FX.ap,FX.tol,FY.t3,1,'DO NOT SCALE DRAWING',1.85,false);
 
   /* ---------------- right: title / project / specs ---------------- */
-  LB(FX.tol,0,'TITLE');    VAL(FX.tol,FX.part,0,FY.b1,(t.title||'TITLE').toUpperCase(),3.34,true);
+  LB(FX.tol,0,'TITLE');    VAL(FX.tol,FX.part,0,FY.b1,(t.title||f.title||'TITLE').toUpperCase(),3.34,true);
   LB(FX.part,0,'PROJECT'); VAL(FX.part,1,0,FY.b1,(store.name||'PROJECT').toUpperCase(),3.34,true);
   LB(FX.tol,FY.b1,'SIZE');        VAL(FX.tol,FX.size,FY.b1,FY.b2,f.paper,2.24,true);
   LB(FX.size,FY.b1,'VERSION');    VAL(FX.size,FX.ver,FY.b1,FY.b2,t.version||f.version||'VER.',2.24,true);
@@ -13363,14 +13368,15 @@ function titlePanelValues(){
 function openTitlePanel(){
   const pg=activePage(); if(pg.type!=='sheet') return;
   const t=pg.title||(pg.title={});
+  const f=store.format||{};
   const sc=String(t.scale||store.format.scale||'1:1').split(':');
   $('#rpTitle').textContent='Title Block';
   $('#rpBody').innerHTML=`
     <div class="grp"><label>Title</label>
-      <input class="rp-inp" id="tbTitle" placeholder="Title" value="${esc(t.title)}"></div>
+      <input class="rp-inp" id="tbTitle" placeholder="Title" value="${esc(t.title||f.title||'')}"></div>
     <div class="grp row2">
       <div><label>Part No.</label><input class="rp-inp" id="tbPart" placeholder="No." value="${esc(t.partNo)}"></div>
-      <div><label>Version</label><input class="rp-inp" id="tbVer" placeholder="Version" value="${esc(t.version)}"></div>
+      <div><label>Version</label><input class="rp-inp" id="tbVer" placeholder="Version" value="${esc(t.version||f.version||'')}"></div>
     </div>
     <div class="grp"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label>
       <input class="rp-inp" id="tbDraw" placeholder="PRJ-VER-PRT-XX" value="${esc(t.drawingNo)}"></div>
@@ -13757,7 +13763,7 @@ let textEditEl=null;
 const EDIT_PAD_MIN=4, EDIT_BORDER=2, EDIT_MIN_FONT=15, EDIT_MIN_W=56;
 function editPad(fontPx){ return Math.max(EDIT_PAD_MIN, Math.round(fontPx*0.25)); }
 function inlineTextWidth(v, fontPx, bold){
-  try{ ctx.save(); ctx.font=(bold?'700 ':'400 ')+fontPx+'px '+store.format.font+',Arial';
+  try{ ctx.save(); ctx.font=(bold?'700 ':'400 ')+fontPx+'px '+uiFont();
        const w=ctx.measureText(String(v||'')||'M').width; ctx.restore(); return w; }
   catch(_){ return String(v||'').length*fontPx*0.6; }
 }
@@ -13776,7 +13782,7 @@ function layoutInlineEdit(el, o){
         : Math.max(o.minW||EDIT_MIN_W, o.textW+f*1.5)+EDIT_PAD_X*2+EDIT_BORDER*2;
   const rows=Math.max(1, o.rows||1), lhBox=o.lineH||lh;
   el.style.boxSizing='border-box';
-  el.style.font=(o.bold?'700 ':'400 ')+f+'px '+store.format.font+',Arial';
+  el.style.font=(o.bold?'700 ':'400 ')+f+'px '+uiFont();
   el.style.lineHeight=lh+'px';
   el.style.padding='0 '+EDIT_PAD_X+'px';
   el.style.borderWidth=EDIT_BORDER+'px';
@@ -13809,7 +13815,7 @@ function startTextEdit(ob,t){
   el.className='inline-edit'; el.value=String(t.text||'');
   // measure the real text width so the box matches the drawn text
   const FW=t.bold?'700 ':'';
-  let tw; try{ ctx.save(); ctx.font=`${FW}${hpx}px ${store.format.font},Arial`; tw=ctx.measureText(String(t.text||'')||'M').width; ctx.restore(); }
+  let tw; try{ ctx.save(); ctx.font=`${FW}${hpx}px ${uiFont()}`; tw=ctx.measureText(String(t.text||'')||'M').width; ctx.restore(); }
   catch(_){ tw=String(t.text||'').length*hpx*0.6; }
   const ALIGN=(t.align===1?'center':t.align===2?'right':'left');
   /* p.y is the baseline; the middle of the letters sits a third of the height
@@ -14942,6 +14948,17 @@ function joinDate(y,mo,d){ return (y||mo||d)? `${y||'YYYY'}/${mo||'MM'}/${d||'DD
 
 function renderFormatView(){
   const f=fmtDraft, ap=f.approvals;
+  {
+    /* The project's title is never taken FROM a sheet - editing a sheet's title
+       must not rewrite the project's. But once several sheets have been given
+       titles of their own and those titles disagree, there is no project title
+       left to state, and a box still showing the old one would be claiming
+       something untrue. In that one case it goes back to empty. */
+    const own=((store&&store.pages)||[]).filter(p=>p.type==='sheet')
+      .map(p=>(p.title&&p.title.title)||'');
+    const diverged = own.length>1 && !own.every(v=>v===own[0]);
+    if(diverged) f.title='';
+  }
   const sc=String(f.scale||'1:1').split(':'); const sc1=sc[0]||'1', sc2=sc[1]||'1';
   const dd=k=>splitDate((ap[k]||{}).date);
   /* per-drawing fields: editable in a project, shown but locked in the defaults */
@@ -15037,7 +15054,11 @@ function bindFormat(){
   const on=(id,ev,fn)=>{ const e=$('#'+id); if(e) e.addEventListener(ev,fn); };
   on('fPaper','change',e=>{ f.paper=e.target.value; f.margin=frameMargin(f.paper);
     const mi=$('#fMargin'); if(mi) mi.value=f.margin; updateFormatPreviews(); });
-  on('fFont','change',e=>{ f.font=e.target.value; updateFormatPreviews(); });
+  on('fFont','change',e=>{ f.font=e.target.value; updateFormatPreviews();
+    /* the first preview after a change can still be the fallback: ask for the
+       family, then draw again once it is really there */
+    try{ if(document.fonts) document.fonts.load('700 40px "'+f.font+'"')
+      .then(()=>{ if(fmtDraft) updateFormatPreviews(); }).catch(()=>{}); }catch(err){} });
   on('fSize','input',e=>{ f.fontSize=+e.target.value||10; updateFormatPreviews(); });
   on('fDec','change',e=>{ f.decimals=+e.target.value; updateFormatPreviews(); });
   on('fStrokeRange','input',e=>{ f.stroke=+e.target.value; updateFormatPreviews(); });
@@ -15643,6 +15664,10 @@ function bindStage(){
    ============================================================ */
 function boot(){
   cv=$('#cv'); ctx=cv.getContext('2d'); stage=$('#stage');
+  /* canvas text does not re-flow when a web font finally arrives - redraw it */
+  try{ if(document.fonts && document.fonts.ready)
+    document.fonts.ready.then(()=>{ try{ render(); if(fmtDraft) updateFormatPreviews(); }catch(e){} }); }
+  catch(e){}
   paintIcons(document); watchIcons();
   load(); renderDashboard();
   loadAsync().then(moved=>{ if(moved) renderDashboard(); });
@@ -15662,8 +15687,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 04 Sep 18:27';
-       console.log('DrawingMaster — build 04 Sep 18:27'); }catch(e){}
+  try{ window.__build='build 04 Sep 22:36';
+       console.log('DrawingMaster — build 04 Sep 22:36'); }catch(e){}
   { const bs=$('#btnSpecial'); if(bs) bs.onclick=openSpecialMenu; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }
