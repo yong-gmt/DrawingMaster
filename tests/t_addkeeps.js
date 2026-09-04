@@ -38,7 +38,7 @@ const H=require('./harness'), APP=H.APP;
   const before=await state();
   console.log('after moving the page     :', JSON.stringify(before));
 
-  await p.click('#btnBalloon'); await p.waitForTimeout(700);
+  await H.addBalloon(p); await p.waitForTimeout(700);
   const afterBal=await state();
   console.log('after adding a balloon    :', JSON.stringify(afterBal));
   await p.click('#btnText'); await p.waitForTimeout(600);
@@ -52,7 +52,7 @@ const H=require('./harness'), APP=H.APP;
     afterTxt.sectionLines===before.sectionLines && before.sectionLines>0);
 
   // two balloons, then delete the first: the second must be untouched
-  await p.click('#btnBalloon'); await p.waitForTimeout(700);
+  await H.addBalloon(p); await p.waitForTimeout(700);
   const ids=await p.evaluate(()=>{
     const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
     return (P.dxf.balloons||[]).map(m=>m.id);
@@ -68,7 +68,7 @@ const H=require('./harness'), APP=H.APP;
   await p.evaluate(()=>window.__hook().deleteSelection && window.__hook().deleteSelection());
   await p.waitForTimeout(400);
   // adding another must not bring the deleted one back
-  await p.click('#btnBalloon'); await p.waitForTimeout(700);
+  await H.addBalloon(p); await p.waitForTimeout(700);
   const end=await p.evaluate(()=>{
     const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
     return {balloons:(P.dxf.balloons||[]).length,

@@ -11,6 +11,7 @@ Workflow : Import DXF → press STYLIZE → adjust as needed → Export PDF, rea
 | **STYLIZE** | Fixes dimension and section lines into a horizontal landing (ANSI) style |
 | **Add Label** | Adds labels to identify the different views on a drawing |
 | **Add Balloon** | Adds numbered pointer balloons to call out parts |
+| **Add Partition** | Adds partition lines to split a sheet into areas |
 | **Add BOM** | Adds a Bill of Materials, with selectable fields to display |
 | **Title Block** | A GMT-specific title block, with editable part details on every sheet |
 

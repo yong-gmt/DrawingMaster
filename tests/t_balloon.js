@@ -1,4 +1,5 @@
 const _fs=require('fs'), _p=require('path');
+const H=require('./harness');
 const OUTDIR=_p.join(require('./harness').ROOT,'tests','out');
 _fs.mkdirSync(OUTDIR,{recursive:true});
 /* files a test writes go here, never into the fixture folders */
@@ -23,9 +24,9 @@ const path=require('path'), fs=require('fs'), {execSync}=require('child_process'
   await page.setInputFiles('#fileInput', require('./harness').fixture('Head-back.dxf'));
   await page.waitForTimeout(1500);
 
-  console.log('button on the toolbar :', await page.evaluate(()=>!!document.querySelector('#btnBalloon')));
-  await page.click('#btnBalloon'); await page.waitForTimeout(400);
-  await page.click('#btnBalloon'); await page.waitForTimeout(400);
+  console.log('button on the toolbar :', await page.evaluate(()=>!!document.querySelector('#btnSpecial')));
+  await H.addBalloon(page); await page.waitForTimeout(400);
+  await H.addBalloon(page); await page.waitForTimeout(400);
   const made=await page.evaluate(()=>{
     const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
     return h.balModels(P).map(m=>({id:m.id, num:m.num,

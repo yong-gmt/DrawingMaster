@@ -41,7 +41,7 @@ const THAI=/[\u0e00-\u0e7f]/;
   bad+=await sweep('after import');
   await p.click('#btnStylize'); await p.waitForTimeout(1300);
   bad+=await sweep('after Stylize');
-  await p.click('#btnBalloon'); await p.waitForTimeout(700);
+  await H.addBalloon(p); await p.waitForTimeout(700);
   await p.keyboard.press('Escape'); await p.waitForTimeout(300);
   bad+=await sweep('after a pointer');
   await p.click('#btnBom'); await p.waitForTimeout(800);

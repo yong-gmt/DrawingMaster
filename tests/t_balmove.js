@@ -13,7 +13,7 @@ const H=require('./harness'), APP=H.APP;
   await p.click('#btnImport');
   await p.setInputFiles('#fileInput', H.fixture('Head-back.dxf'));
   await p.waitForTimeout(1900);
-  for(let i=0;i<3;i++){ await p.click('#btnBalloon'); await p.waitForTimeout(700); }
+  for(let i=0;i<3;i++){ await H.addBalloon(p); await p.waitForTimeout(700); }
 
   const where=()=>p.evaluate(()=>{
     const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
@@ -41,6 +41,39 @@ const H=require('./harness'), APP=H.APP;
   const c=await where();
   const movedOnly = c.filter((x,i)=>JSON.stringify(x.c)!==JSON.stringify(a[i].c)).map(x=>x.id);
   console.log('dragged the second     :', moved, '| balloons that moved:', JSON.stringify(movedOnly));
+
+  /* Drag the THIRD one by its ring - a body drag, not a grip drag - and ask the
+     STROKES where they went, not the model. The model always agreed with itself:
+     it once ran right off the sheet while the circle on the page never moved a
+     pixel, and a test that only read m.c called that a pass. */
+  const body=await p.evaluate(()=>{
+    const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
+    const m=(P.dxf.balloons||[])[2];
+    h.setSelection((P.objects||[]).filter(o=>o._bal===m.id).map(o=>o.id));
+    const ring=(P.objects||[]).find(o=>(o.prims.polys||[]).some(q=>q._role==='ring'&&q._bal===m.id));
+    const rp=ring.prims.polys.find(q=>q._role==='ring');
+    const at=[rp.pts[0][0]+(ring.dx||0), rp.pts[0][1]+(ring.dy||0)];   // a point ON the circle
+    const before={ c:m.c.slice(), stroke:at.slice() };
+    const st=document.getElementById('stage'), rc=st.getBoundingClientRect();
+    const A=h.W2S(at[0],at[1]);
+    const ev=(t,x,y)=>st.dispatchEvent(new MouseEvent(t,{bubbles:true,
+      clientX:Math.round(rc.left+x), clientY:Math.round(rc.top+y), button:0}));
+    ev('mousedown',A.x,A.y);
+    for(let i=1;i<=6;i++) ev('mousemove', A.x+i*8, A.y-i*6);
+    st.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));
+    h.render();
+    const m2=(P.dxf.balloons||[]).find(x=>x.id===m.id);
+    const ring2=(P.objects||[]).find(o=>(o.prims.polys||[]).some(q=>q._role==='ring'&&q._bal===m.id));
+    const rp2=ring2.prims.polys.find(q=>q._role==='ring');
+    const at2=[rp2.pts[0][0]+(ring2.dx||0), rp2.pts[0][1]+(ring2.dy||0)];
+    return { model:[+(m2.c[0]-before.c[0]).toFixed(2), +(m2.c[1]-before.c[1]).toFixed(2)],
+             stroke:[+(at2[0]-before.stroke[0]).toFixed(2), +(at2[1]-before.stroke[1]).toFixed(2)] };
+  });
+  const agree = Math.abs(body.model[0]-body.stroke[0])<0.01 && Math.abs(body.model[1]-body.stroke[1])<0.01;
+  console.log('dragged by the ring    : model moved', JSON.stringify(body.model),
+              '| strokes moved', JSON.stringify(body.stroke),
+              '| they agree:', agree,
+              '| it actually moved:', (Math.abs(body.stroke[0])+Math.abs(body.stroke[1]))>1);
 
   // delete the first, through the same path the keyboard uses
   await p.evaluate(()=>{

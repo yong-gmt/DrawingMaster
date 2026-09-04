@@ -39,7 +39,7 @@ const PROFILE='/tmp/dm-delete';
   console.log('after deleting '+removed+'      :', JSON.stringify(afterDel));
 
   // adding something rebuilds the object list - the deleted pieces must not return
-  await p.click('#btnBalloon'); await p.waitForTimeout(800);
+  await H.addBalloon(p); await p.waitForTimeout(800);
   const afterAdd=await count(p);
   console.log('after adding a balloon :', JSON.stringify(afterAdd));
   await c.close();

@@ -37,4 +37,13 @@ async function loadDxf(pg, dxf){
   await pg.evaluate(t=>{ const h=window.__hook(); h.loadDXFText(t,'test.dxf'); }, text);
   await pg.waitForTimeout(300);
 }
-module.exports={open, loadDxf, fixture, APP, ROOT};
+/* The toolbar button offers a choice now - a balloon or a partition line - so
+   adding one is two clicks, not one. Tests ask for the thing, not the clicks. */
+async function addSpecial(pg, what){
+  await pg.click('#btnSpecial');
+  await pg.waitForSelector('#specialMenu [data-x="'+what+'"]', {state:'visible'});
+  await pg.click('#specialMenu [data-x="'+what+'"]');
+}
+const addBalloon=(pg)=>addSpecial(pg,'balloon');
+const addPartition=(pg)=>addSpecial(pg,'partition');
+module.exports={open, loadDxf, fixture, APP, ROOT, addSpecial, addBalloon, addPartition};

@@ -55,7 +55,7 @@ const fit=(p)=>p.evaluate(()=>{ const h=window.__hook();
     if(m) m.line.q += 9;
     h.dimRelayout(P); h.render();
   });
-  await p.click('#btnBalloon'); await p.waitForTimeout(800);
+  await H.addBalloon(p); await p.waitForTimeout(800);
   await p.evaluate(()=>{ const h=window.__hook(); h.setSelection([]); h.render(); });
   await p.waitForTimeout(3800);
   await fit(p); await p.waitForTimeout(400);

@@ -2466,5 +2466,106 @@ rep("      <h3>Title Bolck</h3>", "      <h3>Title Block</h3>")
 rep("  LB(FX.tol,0,'TITLE');    VAL(FX.tol,FX.part,0,FY.b1,t.title||'TITLE',3.34,true);",
     "  LB(FX.tol,0,'TITLE');    VAL(FX.tol,FX.part,0,FY.b1,(t.title||'TITLE').toUpperCase(),3.34,true);")
 
+# ---- partition lines, and one button that offers them or a balloon ---------
+# A partition is a divider across the sheet at the frame's weight, horizontal or
+# vertical only. It is one ordinary poly in the DRAWING with a tag on it, so
+# saving, moving, deleting, exporting and rebuilding are already written; the
+# module adds only what is new - putting one down, and stretching it by an end.
+par=open(os.path.join(ROOT,'src','modules','partition.js')).read()
+rep("function addTextLabel(){", par+"function addTextLabel(){")
+
+# the frame's weight in one place, so a partition can never drift away from it
+rep("""function drawFrame(){
+  const {W,H}=paperDims(); const m=store.format.margin;
+  const a=W2S(m,H-m), b=W2S(W-m,m);
+  ctx.strokeStyle=INK; ctx.lineWidth=Math.max(1,mm2px(0.3));""",
+"""const FRAME_LW_MM=0.3;                 /* the frame's weight - partitions match it */
+function frameLwPx(){ return Math.max(1, mm2px(FRAME_LW_MM)); }
+function drawFrame(){
+  const {W,H}=paperDims(); const m=store.format.margin;
+  const a=W2S(m,H-m), b=W2S(W-m,m);
+  ctx.strokeStyle=INK; ctx.lineWidth=frameLwPx();""")
+# a stroke asking for the frame's weight gets it - unless a line type has since
+# been applied to it by hand, which is the user overruling this on purpose
+rep("    ctx.lineWidth = p._lw ? Math.max(0.2, lw*p._lw) : lw;   // line type carries its own weight",
+    "    ctx.lineWidth = p._lw ? Math.max(0.2, lw*p._lw)\n                 : (p._frameLw ? frameLwPx() : lw);   // line type carries its own weight")
+
+# the toolbar: one button, two choices, the way Export offers PDF or DXF
+rep('      <button class="tool-sq" id="btnBalloon" title="Add Pointer"><i class="bi bi-balloon-1"></i></button>',
+    '      <button class="tool-sq" id="btnSpecial" title="Add Special"><i class="bi bi-plus-square"></i></button>')
+rep("  { const bb=$('#btnBalloon'); if(bb) bb.onclick=addBalloon; }",
+    "  { const bs=$('#btnSpecial'); if(bs) bs.onclick=openSpecialMenu; }")
+rep(""" 'info-circle':'<circle cx="12" cy="12" r="9"/><path d="M12 11.2v5"/>'""",
+""" /* A brick wall: what a partition is, in the smallest number of strokes that
+    still reads as one at 16 pixels. */
+ 'bricks':'<rect x="3" y="4.5" width="18" height="15" rx="1"/>'
+   + '<path d="M3 9.5h18"/><path d="M3 14.5h18"/>'
+   + '<path d="M9 4.5v5"/><path d="M15 9.5v5"/><path d="M9 14.5v5"/>',
+ 'plus-square':'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8"/><path d="M8 12h8"/>',
+ 'info-circle':'<circle cx="12" cy="12" r="9"/><path d="M12 11.2v5"/>'""")
+
+# grips: an end of a partition is checked first - it owns its own object, and the
+# click that grabs it must not be read as the start of a drag of the whole line
+rep("""    const bg=balGripAt(pg,wx,wy);      if(bg) return {kind:'bal', g:bg};""",
+"""    const pgp=parGripAt(pg,wx,wy);     if(pgp) return {kind:'par', g:pgp};
+    const bg=balGripAt(pg,wx,wy);      if(bg) return {kind:'bal', g:bg};""")
+rep("      if(dhit){ if(dhit.kind==='bal') beginBalDrag(dhit.g);",
+    "      if(dhit){ if(dhit.kind==='par') beginParDrag(dhit.g);\n                else if(dhit.kind==='bal') beginBalDrag(dhit.g);")
+rep("    if(balDrag){ updateBalDrag(w.x,w.y); return; }",
+    "    if(parDrag){ updateParDrag(w.x,w.y); return; }\n    if(balDrag){ updateBalDrag(w.x,w.y); return; }")
+rep("    if(balDrag){ endBalDrag(); }", "    if(parDrag){ endParDrag(); }\n    if(balDrag){ endBalDrag(); }")
+rep("""function drawDimHandles(){
+  const pg=activePage(); if(!pg||pg.type!=='sheet') return;
+  if(drawBalGrips(pg)) return;""",
+"""function drawDimHandles(){
+  const pg=activePage(); if(!pg||pg.type!=='sheet') return;
+  if(drawParGrips(pg)) return;
+  if(drawBalGrips(pg)) return;""")
+
+rep("  addBalloon:()=>addBalloon(), balGrips:(pg)=>balGrips(pg), balGeomOf:(m)=>balGeomOf(m),",
+    """  addBalloon:()=>addBalloon(), balGrips:(pg)=>balGrips(pg), balGeomOf:(m)=>balGeomOf(m),
+  addPartition:()=>addPartition(), parPolys:(pg)=>parPolysOf(pg), parGrips:(pg)=>parGrips(pg),
+  parGripAt:(pg,x,y)=>parGripAt(pg,x,y), beginParDrag:(g)=>beginParDrag(g),
+  updateParDrag:(x,y)=>updateParDrag(x,y), endParDrag:()=>endParDrag(),""")
+
+# ---- a balloon must move when it is dragged --------------------------------
+# Dragging a balloon by its ring looked as though it worked and did nothing. Two
+# bakes existed: bakeOffsets, which moves the STROKES and the model together, and
+# balBake, which moved only the model. balBake ran from balGrips - that is, from
+# every render - so during a drag it fired on every mouse move, walked the model
+# off by the accumulated offset, zeroed the offset it had just read, and never
+# touched a single stroke. The balloon stayed exactly where it was while its model
+# ran off the sheet.
+#
+# So: one baking implementation, and none of it while a drag is still in flight -
+# the offset IS the drag. The handles follow the offset until it is over.
+rep("""function balBake(pg, m){
+  let dx=null, dy=null, same=true;
+  (pg.objects||[]).forEach(o=>{ if(o._bal!==m.id) return;
+    if(dx===null){ dx=o.dx||0; dy=o.dy||0; }
+    else if((o.dx||0)!==dx || (o.dy||0)!==dy) same=false; });
+  if(dx===null || (!dx && !dy) || !same) return;
+  m.c=[m.c[0]+dx, m.c[1]+dy]; m.tip=[m.tip[0]+dx, m.tip[1]+dy];
+  (pg.objects||[]).forEach(o=>{ if(o._bal===m.id){ o.dx=0; o.dy=0; } });
+}""",
+"""function balBake(pg, m){
+  if(objDrag) return;                 /* mid-drag the offset is the drag itself */
+  try{ bakeOffsets(pg); }catch(e){}   /* strokes and model together, or neither */
+}
+/* Where the balloon is RIGHT NOW: its model, plus whatever offset a drag in
+   progress is carrying. Without this the handles sit at the old place while the
+   balloon is being moved under them. */
+function balLiveOffset(pg, m){
+  let dx=0, dy=0;
+  (pg.objects||[]).forEach(o=>{ if(o._bal===m.id && !dx && !dy){ dx=o.dx||0; dy=o.dy||0; } });
+  return [dx,dy];
+}""")
+rep("""  balBake(pg,m);
+  return [ {m, kind:'balC', at:m.c.slice()}, {m, kind:'balTip', at:m.tip.slice()} ];""",
+"""  balBake(pg,m);
+  const [ox,oy]=balLiveOffset(pg,m);
+  return [ {m, kind:'balC', at:[m.c[0]+ox, m.c[1]+oy]},
+           {m, kind:'balTip', at:[m.tip[0]+ox, m.tip[1]+oy]} ];""")
+
 open(DST,'w').write(s)
 print('patched ok')
