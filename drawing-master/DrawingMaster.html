@@ -376,7 +376,7 @@ input[type=range]::-moz-range-thumb{width:19px;height:19px;border:none;border-ra
     <div class="dash-brand"><div class="mark"><i class="bi bi-pencil-square"></i></div><h1>Drawing Master</h1></div>
     <div class="dash-actions">
       <button class="btn-dark" id="btnCreate"><i class="bi bi-plus-lg"></i> Create New</button>
-      <button class="icon-circle" id="btnDefaults" title="Default format for new projects"><i class="bi bi-gear"></i></button>
+      <button class="icon-circle" id="btnDefaults" title="Default Format Config"><i class="bi bi-gear"></i></button>
     </div>
   </div>
   <div id="projGrid" class="proj-grid"></div>
@@ -14723,7 +14723,7 @@ function closeFormat(save){
     const keep=['paper','margin','font','fontSize','decimals','stroke',
                 'ansiRadius','ansiSection','docType','company','version','scale'];
     const out={}; keep.forEach(k=>{ if(fmtDraft[k]!==undefined) out[k]=fmtDraft[k]; });
-    if(saveDefaultFormat(out)) toast('saved as the default for new projects');
+    if(saveDefaultFormat(out)) toast('saved as the default format');
     else toast('could not save the default format');
   }
   else if(save){ snapshot();
@@ -14750,7 +14750,7 @@ function renderFormatView(){
   const opt=(list,cur)=>list.map(v=>`<option${String(v)===String(cur)?' selected':''}>${v}</option>`).join('');
   $('#formatView').innerHTML=`
   <div class="fmt-wrap">
-    <div class="fmt-h1">${fmtEditingDefaults? 'Default Format &mdash; for new projects' : 'Format Config'}</div>
+    <div class="fmt-h1">${fmtEditingDefaults? 'Default Format Config' : 'Format Config'}</div>
 
     <div class="fmt-grid">
       <div>
