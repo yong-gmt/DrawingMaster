@@ -1,0 +1,28 @@
+const {chromium}=require('../_pw');
+const H=require('../harness'), APP=H.APP;
+const DXF=process.argv[2];
+(async()=>{
+  const b=await chromium.launch();
+  const p=await b.newPage({viewport:{width:1500,height:950}});
+  await p.goto('file://'+APP); await p.waitForTimeout(1200);
+  await p.evaluate(()=>window.__hook().createProject()); await p.waitForTimeout(800);
+  const sh=await p.$('text=Sheet 01'); if(sh&&await sh.isVisible()) await sh.click();
+  await p.waitForTimeout(500);
+  await p.click('#btnImport'); await p.setInputFiles('#fileInput', H.fixture(DXF));
+  await p.waitForTimeout(2400);
+  const snap=()=>p.evaluate(()=>{ const h=window.__hook();
+    const pg=h.store.pages.find(x=>x.id===h.store.activeId); const o=[];
+    (pg.objects||[]).forEach(ob=>(ob.prims.texts||[]).forEach(t=>o.push({s:String(t.text), owned:!!(t._dim||t._sec)})));
+    return o; });
+  const a=await snap();
+  await p.click('#btnStylize'); await p.waitForTimeout(2800);
+  const c=await snap();
+  const bag=list=>{ const m={}; list.forEach(t=>{ m[t.s]=(m[t.s]||0)+1; }); return m; };
+  const A=bag(a), C=bag(c);
+  const gone=Object.keys(A).filter(k=>(C[k]||0)<A[k]);
+  const arrived=Object.keys(C).filter(k=>(A[k]||0)<C[k]);
+  console.log(DXF+':  texts '+c.length);
+  console.log('   strings that disappeared: '+JSON.stringify(gone));
+  console.log('   strings that appeared   : '+JSON.stringify(arrived));
+  await b.close();
+})();

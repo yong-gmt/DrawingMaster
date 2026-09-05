@@ -2698,5 +2698,71 @@ rep("""  {key:'finish',    label:'FINISH',     short:'Finish',     w:26},""",
 rep("function bomRow(){ return {title:'',qty:'',material:'',finish:'',production:'',parttype:'',note:''}; }",
     "function bomRow(){ return {title:'',qty:'',material:'',finish:'',color:'',production:'',parttype:'',note:''}; }")
 
+# ---- the decimals you set must reach the dimensions the file rounded --------
+# "does this printed number state this measurement" is a pure question, so it is a
+# component: no DOM, no globals, unit-tested in Node in milliseconds. Recovery and
+# the dimension model both ask it, so it is spliced in ahead of both.
+rep("function convertDXF_v2(parsed, text){",
+    lib('dim-value.mjs')+"\nfunction convertDXF_v2(parsed, text){")
+
+# ---- the title block and the parts list are drawn in capitals --------------
+# A drawing office writes them in capitals, and a value typed in lower case in a
+# panel should not be the one thing on the sheet that is not. Both blocks put
+# every string they draw through one function, so the rule goes in those two
+# places and cannot be forgotten by the next field somebody adds. What is TYPED
+# is left as typed - only what is DRAWN is capitalised, and since the canvas, the
+# PDF and the exported DXF are all made from these same two functions, all three
+# agree. The company logo draws its own lettering and keeps its own case.
+rep("""  const T=(x,yBase,txt,em,bold,al,maxW)=>{
+    txt=(txt==null?'':String(txt)); if(!txt) return;""",
+"""  const T=(x,yBase,txt,em,bold,al,maxW)=>{
+    txt=(txt==null?'':String(txt)).toUpperCase(); if(!txt) return;""")
+rep("""function bomText(txt,x,y,em,align,base,bold){ if(txt==null||txt==='')return; const p=W2S(x,y);""",
+"""function bomText(txt,x,y,em,align,base,bold){ if(txt==null||txt==='')return;
+  txt=String(txt).toUpperCase(); const p=W2S(x,y);""")
+# the cells are wrapped before they are drawn, so they must be measured in capitals too
+rep("""function wrapCell(txt, maxWpx, fpx){
+  txt=String(txt==null?'':txt); if(!txt) return [''];""",
+"""function wrapCell(txt, maxWpx, fpx){
+  txt=String(txt==null?'':txt).toUpperCase(); if(!txt) return [''];""")
+
+# ---- decimals reach the values STYLIZE could not claim ----------------------
+# Recognising a dimension needs its arrowheads, and its printed number has to
+# agree with what its geometry measures. A file drawn with architectural ticks,
+# at a scale, or in inches fails one of those, so no model owns its numbers and
+# nothing reformats them: set two decimals and those values sat there as whole
+# numbers, which is exactly what was reported.
+#
+# Recognising every one of those shapes is a long road. Printing the number the
+# file already wrote to the places the sheet asks for is a short one, and it is
+# honest about what it is doing: it does NOT re-measure - a value no model owns is
+# a value nothing has verified - it only re-prints. A dimension that IS recognised
+# still takes its number from the geometry, as it always did.
+#
+# The first value is remembered on the text itself, so going 2 -> 0 -> 2 comes
+# back to what the file wrote instead of to the rounding of a rounding.
+rep("""    else if(!t._dimPart && !t._sec) t.h=txtH;
+    textN++; }); });""",
+"""    else if(!t._dimPart && !t._sec) t.h=txtH;
+    textN++; }); });
+
+  /* Values no model claimed: printed to the sheet's decimals, not re-measured. */
+  let paddedN=0;
+  {
+    const dec=dimDecimals();
+    pg.objects.forEach(ob=>{ (ob.prims.texts||[]).forEach(t=>{
+      if(isSheetFurniture(t, ob, furniture)) return;
+      if(t._dim || t._dimPart || t._sec || t._balPart || t._bal) return;  // owned already
+      if(isUserText(t)) return;                                           // a label, not a value
+      const P=valueParts(t.text); if(!P) return;
+      if(t._num0==null) t._num0=P.value;      // what the file wrote, kept for good
+      const next=P.before + Number(t._num0).toFixed(dec) + P.after;
+      if(next!==String(t.text)){ t.text=next; paddedN++; }
+    }); });
+  }""")
+rep("""  parts.push('texts '+textN);""",
+    """  parts.push('texts '+textN);
+  if(paddedN) parts.push('values re-printed '+paddedN);""")
+
 open(DST,'w').write(s)
 print('patched ok')

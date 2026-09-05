@@ -9004,7 +9004,7 @@ function bomDefaults(){
 function bomVisible(b){ return BOM_DEFS.filter(d=>b.cols[d.key]); }
 function bomColWidths(b){ const vis=bomVisible(b); return { vis, ws:vis.map(d=>b.colW[d.key]||d.w) }; }
 function wrapCell(txt, maxWpx, fpx){
-  txt=String(txt==null?'':txt); if(!txt) return [''];
+  txt=String(txt==null?'':txt).toUpperCase(); if(!txt) return [''];
   ctx.save(); ctx.font=`${fpx}px ${store.format.font},Arial`;
   const fit=s=>ctx.measureText(s).width<=maxWpx;
   const words=txt.split(/\s+/); const lines=[]; let cur='';
@@ -9031,7 +9031,8 @@ function bomHitAt(pg, wx, wy){
 function bomBounds(page){ const b=page&&page.bom; if(!b) return null;
   const {ws}=bomColWidths(b); const w=ws.reduce((a,c)=>a+c,0); const rh=bomRowHeights(b);
   const h=bomTitleRowMM()+bomHeadRowMM()+rh.reduce((a,c)=>a+c,0); return {x:b.x,y:b.y,w,h,ws,rh}; }
-function bomText(txt,x,y,em,align,base,bold){ if(txt==null||txt==='')return; const p=W2S(x,y);
+function bomText(txt,x,y,em,align,base,bold){ if(txt==null||txt==='')return;
+  txt=String(txt).toUpperCase(); const p=W2S(x,y);
   ctx.save(); ctx.fillStyle=INK; ctx.font=`${bold?'700 ':''}${mm2px(em)}px ${store.format.font},Arial`;
   ctx.textAlign=align; ctx.textBaseline=base; ctx.fillText(String(txt),p.x,p.y); ctx.restore(); }
 function drawBOM(page){
@@ -9956,7 +9957,22 @@ function dimValueText(m){
   const num=dimMeasuredValue(m).toFixed(dimDecimals());
   if(m.text.prefix!=null || m.text.suffix!=null)
     return (m.text.prefix||'')+num+(m.text.suffix||'');
-  if(m.text.override!=null) return m.text.override;   /* a note we could not read */
+  if(m.text.override!=null){
+    /* A string we could not tie to the geometry. Most of the time that is not a
+       note at all - it is a perfectly good value on a drawing that was SCALED, so
+       its numbers were never going to match the vectors under them. Printing it
+       back exactly as the file wrote it meant the decimal places set for the sheet
+       reached every dimension except those, which is the one place they were most
+       obviously missing.
+       So: if the string is a bare value, it is re-printed to the sheet's decimals.
+       It is not re-measured - nothing here has verified it - and the override
+       itself is left untouched, so going 2 -> 0 -> 2 comes back to what the file
+       wrote. Anything that is not just a value is still a note, and still passes
+       through as it stands. */
+    const P=valueParts(m.text.override);
+    if(P) return P.before + P.value.toFixed(dimDecimals()) + P.after;
+    return m.text.override;
+  }
   return num;
 }
 /* Split the drawing's own string around the number it states, so the wrapper is
@@ -9968,7 +9984,10 @@ function dimSplitValue(m, str){
   if(nums){
     for(let i=nums.length-1;i>=0;i--){
       const t=nums[i];
-      if(Math.abs(parseFloat(t.replace(',','.'))-val) <= Math.max(0.05, val*0.01)){
+      /* The drawing prints its numbers ROUNDED. "24" beside a 24.37 mm span is
+         that span, printed to no decimal places - so the number is ours to
+         re-measure and re-format, and only what surrounds it is the drawing's. */
+      if(statesValue(t, val)){
         const at=s.lastIndexOf(t);
         m.text.prefix=s.slice(0,at); m.text.suffix=s.slice(at+t.length);
         m.text.override=null;
@@ -10434,8 +10453,21 @@ function v2DimAngular(e, T, mm, id, raw){
   }));
   if(!best) return null;
   const s0=best.s0, d=best.d;
-  const rayEnd=(a)=>[V[0]+Math.cos(a)*r, V[1]+Math.sin(a)*r];
-  const e1=rayEnd(s0), e2=rayEnd(s0+d);
+  /* Where each SIDE of the angle actually reaches, measured along its own ray.
+     These are what the extension lines run from - out from the edge of the part to
+     just past the arc, the way every other kind of dimension reaches its subject.
+     Putting them on the arc itself (rayEnd below) left nothing to extend: the
+     line ran from the arc to a hair past the arc, so an angular dimension arrived
+     with two 1.5 mm stubs floating out in space, touching nothing. */
+  const rayEnd=(a,dist)=>[V[0]+Math.cos(a)*dist, V[1]+Math.sin(a)*dist];
+  const reach=(p,q,a)=>{
+    const ux=Math.cos(a), uy=Math.sin(a);
+    const proj=z=>(z[0]-V[0])*ux + (z[1]-V[1])*uy;
+    const far=Math.max(proj(p), proj(q));
+    return (far>1e-6)? far : r;                 /* nothing out that way: fall back */
+  };
+  const e1=rayEnd(s0,   reach(A1,A2,s0)),
+        e2=rayEnd(s0+d, reach(B1,B2,s0+d));
   const m={ id, kind:'angular',
     centre:V, radius:r, a0:s0, sweep:d,
     ext:{gap:[1.0,1.0], overshoot:[2.5,2.5], visible:[true,true]},
@@ -11380,11 +11412,7 @@ function dimTextRole(str){
 }
 /* The number the value states. "2x \u23004.40" measures 4.40 - the count in front
    is how many features share this dimension, not part of the measurement. */
-function dimValueNumber(str){
-  const s=String(str||'').replace(/^\s*\d+\s*[xX]\s*/,'');
-  const m=s.match(/-?\d+(?:[.,]\d+)?/);
-  return m? parseFloat(m[0].replace(',','.')) : null;
-}
+function dimValueNumber(str){ return statedNumber(str); }
 /* Which kind of measurement the value announces itself as. */
 function dimValueKind(str){
   const s=String(str||'').trim();
@@ -11498,7 +11526,7 @@ function v2RecoverDims(out, mm, seq){
              circle, which is how an R2.75 appeared that the drawing never had. */
           if(stated!=null){
             const own=(kind==='diameter')? R.r*2 : R.r;
-            if(Math.abs(own-stated) > Math.max(0.05, stated*0.01)) return;
+            if(!statesValue(str, own)) return;
           }
           cands.push({score:near(a.tip,tp), text:T, arrows:[a], kind, R, str, th, tp, id:null});
         });
@@ -11539,7 +11567,7 @@ function v2RecoverDims(out, mm, seq){
         const room=Math.max(th*20, L*2, 40);
         if(across>Math.max(th*12, L*0.5, 25)) continue;
         if(along<-room || along>L+room) continue;
-        if(stated!=null && Math.abs(L-stated) > Math.max(0.05, stated*0.01)) continue;
+        if(stated!=null && !statesValue(str, L)) continue;
         cands.push({score:across+Math.abs(along-L/2)*0.25, text:T, arrows:[A,B],
                     kind:'linear', pair:{A,B,u,n,L}, str, th, tp, id:null});
       }
@@ -11716,6 +11744,96 @@ function v2RecoverSweep(out){
   out.solids=(out.solids||[]).filter(s=>!s._recDead);
   out.texts=(out.texts||[]).filter(t=>!t._recDead);
 }
+/* ============================================================================
+   DOES THE NUMBER A DRAWING PRINTS STATE THIS MEASUREMENT?
+   ----------------------------------------------------------------------------
+   Two places have to answer this. Recovery asks it to decide whether a pair of
+   arrowheads and a piece of text are one dimension; the dimension model asks it
+   to decide whether the string it was given wraps a number it may re-measure and
+   re-format, or is a note it must leave alone.
+
+   Both used to ask "are these two numbers within one percent of each other". A
+   drawing does not print one percent - it prints ROUNDED. A 24.37 mm span is
+   typed as "24" on plenty of real sheets, and one percent of 24 is 0.24, so the
+   answer came back NO: the dimension was never recognised, STYLIZE never touched
+   it, and the decimal places set in Format Config appeared to be ignored on
+   exactly those dimensions whose source file had rounded hardest.
+
+   The right question is not "how close" but "is this the measurement, printed to
+   the places the string itself shows". "24" shows none, so it states any span
+   that rounds to 24. "24.4" shows one, so it states 24.35 to 24.45. The string
+   declares its own precision, and this reads it.
+
+   The old window is kept as well, for the other case it was right about: a
+   drawing that states a NOMINAL - a hole called 12.00 that measures 12.02 -
+   still counts as stating it.
+   ========================================================================== */
+
+/* A leading repeat count is not the measurement: "2x 24" is two of something
+   24 long, not something 2 long. */
+const REPEAT = /^\s*\d+\s*[xX]\s*/;
+
+/* The number a drawing's string states, or null if it states none. */
+function statedNumber(str){
+  const s = String(str==null?'':str).replace(REPEAT,'');
+  const m = s.match(/-?\d+(?:[.,]\d+)?/);
+  if(!m) return null;
+  const v = parseFloat(m[0].replace(',','.'));
+  return isFinite(v) ? v : null;
+}
+
+/* How many decimal places the string shows - its own declared precision. */
+function statedDecimals(str){
+  const s = String(str==null?'':str).replace(REPEAT,'');
+  const m = s.match(/-?\d+(?:[.,](\d+))?/);
+  return (m && m[1]) ? m[1].length : 0;
+}
+
+/* Does `str` state `measured`? A string with no number in it states nothing and
+   therefore contradicts nothing. */
+function statesValue(str, measured){
+  const stated = statedNumber(str);
+  if(stated === null) return true;
+  if(!isFinite(measured)) return false;
+  const dec = statedDecimals(str);
+  /* printed to the places it shows - the usual case, and exact */
+  if(+Math.abs(measured).toFixed(dec) === Math.abs(stated)) return true;
+  /* or a nominal, printed at full precision and a hair off the geometry */
+  return Math.abs(measured - stated) <= Math.max(0.05, Math.abs(stated)*0.01);
+}
+
+/* ----------------------------------------------------------------------------
+   A string that is nothing but a number, with the wrappers a drawing puts around
+   one. This is for the values STYLIZE could NOT recognise as dimensions - a file
+   drawn with architectural ticks instead of arrowheads, or at a scale, or in
+   inches, leaves its numbers as plain text that no model owns. They still have to
+   obey the decimal places the sheet is set to, so they are re-printed as they
+   stand: the number is not re-measured, it is the one the file wrote.
+
+   The wrappers are listed rather than guessed, because the cost of guessing wrong
+   is turning "M8" into "M8.00" or a balloon's "1" into "1.00". Anything with a
+   letter, a colon or a word in it is not a value and is left alone.
+   -------------------------------------------------------------------------- */
+const VALUE_PREFIX = /^(?:\s*\d+\s*[xX]\s*)?\s*(?:[⌀∅Øø]|%%[cCdD]|SR|R|±|\+-)?\s*$/;
+const VALUE_SUFFIX = /^\s*(?:mm|MM|°|%%[dD])?\s*$/;
+
+/* {before, value, after} for a string that is a bare value, else null. */
+function valueParts(str){
+  const s = String(str==null?'':str);
+  /* The count in "2x 24" is a number too, and it is not the one being measured -
+     so it is taken off the front and put back into the wrapper afterwards. */
+  const rep = REPEAT.exec(s);
+  const head = rep ? rep[0] : '';
+  const rest = s.slice(head.length);
+  const m = /-?\d+(?:[.,]\d+)?/.exec(rest);
+  if(!m) return null;
+  const before = head + rest.slice(0, m.index), after = rest.slice(m.index + m[0].length);
+  if(!VALUE_PREFIX.test(before) || !VALUE_SUFFIX.test(after)) return null;
+  const value = parseFloat(m[0].replace(',','.'));
+  if(!isFinite(value)) return null;
+  return {before, value, after};
+}
+
 function convertDXF_v2(parsed, text){
   const mm=v2UnitMM(parsed, text);
   const out={polys:[], texts:[], hatches:[], solids:[], marks:[], clines:[], dims:[], secs:[]};
@@ -13193,7 +13311,7 @@ function drawTitleBlock(page){
   const Hl=(fy,fx0,fx1)=>{ const a=W2S(X(fx0),Y(fy)),b=W2S(X(fx1),Y(fy)); seg(a,b); };
   /* text: fits inside a cell, shrinking if necessary */
   const T=(x,yBase,txt,em,bold,al,maxW)=>{
-    txt=(txt==null?'':String(txt)); if(!txt) return;
+    txt=(txt==null?'':String(txt)).toUpperCase(); if(!txt) return;
     let e=em; if(maxW){ const w=measureMM(txt,em,bold); if(w>maxW) e=em*maxW/w; }
     drawTextMM(x,yBase,txt,e,bold,al);
   };
@@ -13698,6 +13816,21 @@ function stylizeANSI(){
     else if(!t._dimPart && !t._sec) t.h=txtH;
     textN++; }); });
 
+  /* Values no model claimed: printed to the sheet's decimals, not re-measured. */
+  let paddedN=0;
+  {
+    const dec=dimDecimals();
+    pg.objects.forEach(ob=>{ (ob.prims.texts||[]).forEach(t=>{
+      if(isSheetFurniture(t, ob, furniture)) return;
+      if(t._dim || t._dimPart || t._sec || t._balPart || t._bal) return;  // owned already
+      if(isUserText(t)) return;                                           // a label, not a value
+      const P=valueParts(t.text); if(!P) return;
+      if(t._num0==null) t._num0=P.value;      // what the file wrote, kept for good
+      const next=P.before + Number(t._num0).toFixed(dec) + P.after;
+      if(next!==String(t.text)){ t.text=next; paddedN++; }
+    }); });
+  }
+
   /* A guarantee, not a chain of conditions.
      Size used to be settled in several places - a model here, this pass there,
      a balloon somewhere else - so a value could be restyled by one path and never
@@ -13739,6 +13872,7 @@ function stylizeANSI(){
   if(secs) parts.push('sections '+secs);
   if(found) parts.push('rebuilt from geometry '+found);
   parts.push('texts '+textN);
+  if(paddedN) parts.push('values re-printed '+paddedN);
   toast('STYLIZE → ANSI ('+parts.join(' · ')+')'
     + (left.length? (' — values still unmatched: '+left.length+'') : ' — nothing left over'));
 }
@@ -15688,8 +15822,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 04 Sep 22:51';
-       console.log('DrawingMaster — build 04 Sep 22:51'); }catch(e){}
+  try{ window.__build='build 05 Sep 15:59';
+       console.log('DrawingMaster — build 05 Sep 15:59'); }catch(e){}
   { const bs=$('#btnSpecial'); if(bs) bs.onclick=openSpecialMenu; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }

@@ -130,7 +130,22 @@ function dimValueText(m){
   const num=dimMeasuredValue(m).toFixed(dimDecimals());
   if(m.text.prefix!=null || m.text.suffix!=null)
     return (m.text.prefix||'')+num+(m.text.suffix||'');
-  if(m.text.override!=null) return m.text.override;   /* a note we could not read */
+  if(m.text.override!=null){
+    /* A string we could not tie to the geometry. Most of the time that is not a
+       note at all - it is a perfectly good value on a drawing that was SCALED, so
+       its numbers were never going to match the vectors under them. Printing it
+       back exactly as the file wrote it meant the decimal places set for the sheet
+       reached every dimension except those, which is the one place they were most
+       obviously missing.
+       So: if the string is a bare value, it is re-printed to the sheet's decimals.
+       It is not re-measured - nothing here has verified it - and the override
+       itself is left untouched, so going 2 -> 0 -> 2 comes back to what the file
+       wrote. Anything that is not just a value is still a note, and still passes
+       through as it stands. */
+    const P=valueParts(m.text.override);
+    if(P) return P.before + P.value.toFixed(dimDecimals()) + P.after;
+    return m.text.override;
+  }
   return num;
 }
 /* Split the drawing's own string around the number it states, so the wrapper is
@@ -142,7 +157,10 @@ function dimSplitValue(m, str){
   if(nums){
     for(let i=nums.length-1;i>=0;i--){
       const t=nums[i];
-      if(Math.abs(parseFloat(t.replace(',','.'))-val) <= Math.max(0.05, val*0.01)){
+      /* The drawing prints its numbers ROUNDED. "24" beside a 24.37 mm span is
+         that span, printed to no decimal places - so the number is ours to
+         re-measure and re-format, and only what surrounds it is the drawing's. */
+      if(statesValue(t, val)){
         const at=s.lastIndexOf(t);
         m.text.prefix=s.slice(0,at); m.text.suffix=s.slice(at+t.length);
         m.text.override=null;
@@ -617,8 +635,21 @@ function v2DimAngular(e, T, mm, id, raw){
   }));
   if(!best) return null;
   const s0=best.s0, d=best.d;
-  const rayEnd=(a)=>[V[0]+Math.cos(a)*r, V[1]+Math.sin(a)*r];
-  const e1=rayEnd(s0), e2=rayEnd(s0+d);
+  /* Where each SIDE of the angle actually reaches, measured along its own ray.
+     These are what the extension lines run from - out from the edge of the part to
+     just past the arc, the way every other kind of dimension reaches its subject.
+     Putting them on the arc itself (rayEnd below) left nothing to extend: the
+     line ran from the arc to a hair past the arc, so an angular dimension arrived
+     with two 1.5 mm stubs floating out in space, touching nothing. */
+  const rayEnd=(a,dist)=>[V[0]+Math.cos(a)*dist, V[1]+Math.sin(a)*dist];
+  const reach=(p,q,a)=>{
+    const ux=Math.cos(a), uy=Math.sin(a);
+    const proj=z=>(z[0]-V[0])*ux + (z[1]-V[1])*uy;
+    const far=Math.max(proj(p), proj(q));
+    return (far>1e-6)? far : r;                 /* nothing out that way: fall back */
+  };
+  const e1=rayEnd(s0,   reach(A1,A2,s0)),
+        e2=rayEnd(s0+d, reach(B1,B2,s0+d));
   const m={ id, kind:'angular',
     centre:V, radius:r, a0:s0, sweep:d,
     ext:{gap:[1.0,1.0], overshoot:[2.5,2.5], visible:[true,true]},

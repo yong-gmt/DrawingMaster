@@ -35,11 +35,7 @@ function dimTextRole(str){
 }
 /* The number the value states. "2x \u23004.40" measures 4.40 - the count in front
    is how many features share this dimension, not part of the measurement. */
-function dimValueNumber(str){
-  const s=String(str||'').replace(/^\s*\d+\s*[xX]\s*/,'');
-  const m=s.match(/-?\d+(?:[.,]\d+)?/);
-  return m? parseFloat(m[0].replace(',','.')) : null;
-}
+function dimValueNumber(str){ return statedNumber(str); }
 /* Which kind of measurement the value announces itself as. */
 function dimValueKind(str){
   const s=String(str||'').trim();
@@ -153,7 +149,7 @@ function v2RecoverDims(out, mm, seq){
              circle, which is how an R2.75 appeared that the drawing never had. */
           if(stated!=null){
             const own=(kind==='diameter')? R.r*2 : R.r;
-            if(Math.abs(own-stated) > Math.max(0.05, stated*0.01)) return;
+            if(!statesValue(str, own)) return;
           }
           cands.push({score:near(a.tip,tp), text:T, arrows:[a], kind, R, str, th, tp, id:null});
         });
@@ -194,7 +190,7 @@ function v2RecoverDims(out, mm, seq){
         const room=Math.max(th*20, L*2, 40);
         if(across>Math.max(th*12, L*0.5, 25)) continue;
         if(along<-room || along>L+room) continue;
-        if(stated!=null && Math.abs(L-stated) > Math.max(0.05, stated*0.01)) continue;
+        if(stated!=null && !statesValue(str, L)) continue;
         cands.push({score:across+Math.abs(along-L/2)*0.25, text:T, arrows:[A,B],
                     kind:'linear', pair:{A,B,u,n,L}, str, th, tp, id:null});
       }
