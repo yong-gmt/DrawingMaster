@@ -127,9 +127,16 @@ function dimMeasuredValue(m){
   return dimValueOf(m);
 }
 function dimValueText(m){
-  const num=dimMeasuredValue(m).toFixed(dimDecimals());
-  if(m.text.prefix!=null || m.text.suffix!=null)
-    return (m.text.prefix||'')+num+(m.text.suffix||'');
+  const dec=dimDecimals();
+  if(m.text.prefix!=null || m.text.suffix!=null){
+    /* The drawing's own number where the drawing gave one - re-printed, never
+       re-measured. Measuring is still how a dimension is FOUND and how its lines
+       are drawn; it is not how its value is decided. Only a dimension the file
+       left for us to invent has nothing to quote, and that one is measured. */
+    const v=(m.text.num!=null)? m.text.num : dimMeasuredValue(m);
+    return (m.text.prefix||'')+v.toFixed(dec)+(m.text.suffix||'');
+  }
+  const num=dimMeasuredValue(m).toFixed(dec);
   if(m.text.override!=null){
     /* A string we could not tie to the geometry. Most of the time that is not a
        note at all - it is a perfectly good value on a drawing that was SCALED, so
@@ -163,12 +170,18 @@ function dimSplitValue(m, str){
       if(statesValue(t, val)){
         const at=s.lastIndexOf(t);
         m.text.prefix=s.slice(0,at); m.text.suffix=s.slice(at+t.length);
+        /* The NUMBER the drawing stated, kept. STYLIZE changes how a dimension is
+           formatted; it does not change what a dimension says. The value was
+           checked by whoever made the drawing, and re-deriving it from the vectors
+           quietly rewrote it on any sheet that was drawn to a scale or edited after
+           it was dimensioned. Only the decimals shown are ours to decide. */
+        m.text.num=parseFloat(t.replace(',','.'));
         m.text.override=null;
         return true;
       }
     }
   }
-  m.text.prefix=null; m.text.suffix=null;
+  m.text.prefix=null; m.text.suffix=null; m.text.num=null;
   m.text.override=s.trim()? s : null;                 /* not a number we can own */
   return false;
 }
@@ -603,7 +616,17 @@ function v2DimAngular(e, T, mm, id, raw){
   if(!R1 || !R2) return null;
   const apA=ang(AP);
   const norm=(t)=>{ while(t<0) t+=2*Math.PI; while(t>=2*Math.PI) t-=2*Math.PI; return t; };
-  let best=null;
+  /* The drawing STATES its own angle. Four pairings of rays are possible and the
+     arc point is only a hint about which one is meant - a hint that reads 105 as
+     285 when the arc point sits where both pairings can claim it. The printed
+     number is not a hint: it is what the file says the angle is, and it settles
+     the question. Nothing is invented - a candidate has to AGREE with the file to
+     win this way, and when the file prints no number this is skipped entirely and
+     the old rules decide exactly as they did before. */
+  const t0=(raw.texts||[])[0];
+  const printed=t0? String(t0.text==null?'':t0.text).replace(/%%[dD]/g,'').replace(/°/g,'').trim() : '';
+  const printedNum=printed? statedNumber(printed) : null;
+  let best=null, agreed=null;
   R1.forEach(r1=>R2.forEach(r2=>{
     const s0c=r1.a, s1c=r2.a;
     /* Only rays the drawing supports. Allowing the opposite of a drawn ray let a
@@ -613,6 +636,11 @@ function v2DimAngular(e, T, mm, id, raw){
     [1,-1].forEach(dirSign=>{
       let d0=norm((s1c-s0c)*dirSign)*dirSign;         /* signed sweep that way round */
       if(Math.abs(d0)<1e-9) return;
+      /* Does this pairing give the angle the drawing printed? */
+      if(printedNum!=null && statesValue(printed, Math.abs(d0)*180/Math.PI)){
+        if(!agreed || sup>agreed.sup) agreed={s0:s0c, d:d0, sup};
+        return;
+      }
       const t=norm((apA-s0c)*dirSign);
       if(t>Math.abs(d0)+1e-6) return;                 /* the arc point is not on it */
       /* Which sweep does the arc point BELONG to? The one it sits in the middle of.
@@ -633,6 +661,7 @@ function v2DimAngular(e, T, mm, id, raw){
       if(better) best={s0:s0c, d:d0, sup};
     });
   }));
+  best = agreed || best;                            /* what the file says outranks the hint */
   if(!best) return null;
   const s0=best.s0, d=best.d;
   /* Where each SIDE of the angle actually reaches, measured along its own ray.
@@ -659,6 +688,14 @@ function v2DimAngular(e, T, mm, id, raw){
           override:null, h:2.5, align:1, suffix:'\u00b0'},
     ok:false };
   m.text.value=dimValueOf(m).toFixed(2);
+  /* And if, after all that, the angle read still is not the one the drawing
+     printed, the drawing wins: its string is kept and re-printed to the sheet's
+     decimals, the same as every other value that could not be tied to geometry.
+     STYLIZE is not here to correct the file's arithmetic. */
+  /* The angle the FILE states, quoted rather than re-derived - the same rule every
+     other kind of dimension follows. The sweep read from the geometry still decides
+     which way the arc runs and where its ends are; it does not decide the value. */
+  if(printedNum!=null) m.text.num=printedNum;
   dimFitFromRaw(m, raw);
   return m;
 }

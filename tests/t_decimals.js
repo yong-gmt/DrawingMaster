@@ -7,7 +7,11 @@ const H=require('./harness'), APP=H.APP;
    measurement" was one percent - 0.24 - so the answer was no, the pair was never
    recognised as a dimension at all, and STYLIZE left the text exactly as the file
    had printed it. Set two decimals and nothing happened to it.
-   This measures what is DRAWN, not what the models say. */
+   This measures what is DRAWN, not what the models say.
+
+   Note what is NOT tested here: that 24 becomes 24.37. It must not. The geometry
+   is how a dimension is FOUND; the number beside it is what the drawing SAYS, and
+   STYLIZE changes the format of a dimension, never its data. */
 (async()=>{
   const b=await chromium.launch();
   const p=await (await b.newContext({viewport:{width:1400,height:900}})).newPage();
@@ -44,7 +48,12 @@ const H=require('./harness'), APP=H.APP;
   lines.forEach(l=>console.log(l));
   console.log('settings that did not reach every dimension:', bad);
   console.log('the wrapper the file added is still there:',
-    (await run(2)).some(s=>s==='2x 24.37'));
+    (await run(2)).some(s=>s==='2x 24.00'));
+  /* And the VALUE is the file's, not the vectors'. decimals.dxf deliberately spans
+     24.37 mm while printing "24": STYLIZE formats what the drawing says, it does
+     not restate it. A drawing's numbers were checked by whoever drew it. */
+  console.log('values are still the file’s own:',
+    JSON.stringify((await run(2)).sort()));
   /* And a file no model can claim: architectural ticks instead of arrowheads, so
      nothing is recognised as a dimension at all. Those numbers still have to obey
      the sheet's decimals - re-printed as the file wrote them, not re-measured. */
