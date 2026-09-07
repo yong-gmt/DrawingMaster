@@ -8092,7 +8092,7 @@ function factoryFormat(){
   return {
     paper:'A4', margin:frameMargin('A4'), font:'Arial', fontSize:10, decimals:2, stroke:0.2,
     ansiRadius:true, ansiSection:true,
-    docType:'WORKING DRAWINGS', company:'General Magick (Thailand) Co., LTD',
+    docType:'WORKING DRAWINGS', company:'General Magic (Thailand) Co., LTD',
     version:'', scale:'1:1',
     approvals:{ design:{name:'',date:''}, drawn:{name:'',date:''}, approved:{name:'',date:''} }
   };
@@ -15082,6 +15082,7 @@ function openFormat(defaults){
   if(!fmtDraft.approvals) fmtDraft.approvals={design:{name:'',date:''},drawn:{name:'',date:''},approved:{name:'',date:''}};
   renderFormatView();
   const bd=$('#editor .body'); if(bd) bd.style.visibility='hidden';
+  { const bc=$('#btnCreate'); if(bc) bc.style.display=fmtEditingDefaults? 'none' : ''; }
   $('#formatView').classList.remove('hide');
 }
 function closeFormat(save){
@@ -15108,6 +15109,7 @@ function closeFormat(save){
     afterMutate(); fitView(); }
   if(fmtDraft) delete fmtDraft.__project;
   fmtDraft=null; fmtEditingDefaults=false;
+  { const bc=$('#btnCreate'); if(bc) bc.style.display=''; }
   if(fmtBorrowedStore){ store=fmtPrevStore||null; fmtPrevStore=null; fmtBorrowedStore=false; }
   $('#formatView').classList.add('hide');
   const bd=$('#editor .body'); if(bd) bd.style.visibility='';
@@ -15859,8 +15861,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 05 Sep 19:28';
-       console.log('DrawingMaster — build 05 Sep 19:28'); }catch(e){}
+  try{ window.__build='build 07 Sep 09:33';
+       console.log('DrawingMaster — build 07 Sep 09:33'); }catch(e){}
   { const bs=$('#btnSpecial'); if(bs) bs.onclick=openSpecialMenu; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }

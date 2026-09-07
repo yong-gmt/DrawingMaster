@@ -2764,5 +2764,19 @@ rep("""  parts.push('texts '+textN);""",
     """  parts.push('texts '+textN);
   if(paddedN) parts.push('values re-printed '+paddedN);""")
 
+# ---- no "Create New" while the defaults are open ----------------------------
+# The defaults page is drawn over the dashboard, so the dashboard's own header
+# stayed on top of it - offering to start a new project from a page that is in the
+# middle of deciding what a new project should start AS. It comes back when the
+# page is closed.
+rep("""  $('#formatView').classList.remove('hide');
+}""",
+"""  { const bc=$('#btnCreate'); if(bc) bc.style.display=fmtEditingDefaults? 'none' : ''; }
+  $('#formatView').classList.remove('hide');
+}""")
+rep("""  fmtDraft=null; fmtEditingDefaults=false;""",
+"""  fmtDraft=null; fmtEditingDefaults=false;
+  { const bc=$('#btnCreate'); if(bc) bc.style.display=''; }""")
+
 open(DST,'w').write(s)
 print('patched ok')
