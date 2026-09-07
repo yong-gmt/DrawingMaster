@@ -44,24 +44,32 @@ function stylizeScan(pg){
    stroke that entity drew carries its id; the other was rebuilt from loose
    geometry and keeps a list of the pieces it claimed. A tag is the more reliable
    of the two, because indices shift and tags do not. */
+/* Take one model's strokes over: the file's pieces come out, the model's go in.
+   Pulled out of the loop below because a drag needs it too - an angular dimension
+   keeps the file's picture until somebody moves it, and at that moment it has to
+   become the model's, or the model would draw a second arc beside the first. */
+function dimAdoptOne(pg, m){
+  const d=pg&&pg.dxf; if(!d||!m) return false;
+  let raw;
+  if(m.refs) raw=v2RecoverRaw(d, m);
+  else {
+    raw={polys:[], solids:[], texts:[], idx:{polys:[],solids:[],texts:[]}};
+    (d.polys||[]).forEach(p=>{ if(p._dim===m.id) raw.polys.push(p); });
+    (d.solids||[]).forEach(x=>{ if(x._dim===m.id) raw.solids.push(x); });
+    (d.texts||[]).forEach(t=>{ if(t._dim===m.id) raw.texts.push(t); });
+  }
+  const built=dimProject(m, raw.polys[0]||{}, raw.texts);
+  v2RecoverReplace(d, m, raw, built);
+  m.pending=false;
+  return true;
+}
 function stylizeAdopt(pg){
   const d=pg&&pg.dxf; if(!d) return 0;
   let n=0;
   (d.dims||[]).forEach(m=>{
     if(!m.pending || !m.ok) return;
-    try{
-      let raw;
-      if(m.refs) raw=v2RecoverRaw(d, m);
-      else {
-        raw={polys:[], solids:[], texts:[], idx:{polys:[],solids:[],texts:[]}};
-        (d.polys||[]).forEach(p=>{ if(p._dim===m.id) raw.polys.push(p); });
-        (d.solids||[]).forEach(x=>{ if(x._dim===m.id) raw.solids.push(x); });
-        (d.texts||[]).forEach(t=>{ if(t._dim===m.id) raw.texts.push(t); });
-      }
-      const built=dimProject(m, raw.polys[0]||{}, raw.texts);
-      v2RecoverReplace(d, m, raw, built);
-      m.pending=false; n++;
-    }catch(err){ console.warn('could not adopt', m.id, err); m.pending=false; }
+    try{ if(dimAdoptOne(pg, m)) n++; }
+    catch(err){ console.warn('could not adopt', m.id, err); m.pending=false; }
   });
   (d.secs||[]).forEach(s=>{ if(s.ok) s.pending=false; });
   if(n){ v2RecoverSweep(d); buildObjects(pg); dimRelayout(pg); }

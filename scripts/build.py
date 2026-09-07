@@ -2370,7 +2370,7 @@ rep("""  [['+-  x.x',0.327,0.306],['x.xx',0.341,0.382],['x.xxx',0.341,0.452]].fo
 # ---- Drawing No. says what shape it wants ----------------------------------
 # The field's placeholder repeated its own label, which told the user nothing.
 # It now shows the pattern itself, and an info mark beside the label spells the
-# pattern out on hover for anyone who cannot read PRJ-VER-PRT-XX at a glance.
+# pattern out on hover for anyone who cannot read PRJ-VER-PRT-PV_SV at a glance.
 rep(" 'bullseye':'<circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"1.5\"/>'\n};",
     " 'bullseye':'<circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"1.5\"/>',\n"
     " 'info-circle':'<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11.2v5\"/>'\n"
@@ -2384,11 +2384,11 @@ rep(".rp-inp::placeholder{color:#aeb8c6}",
 
 rep("""    <div class="grp"><label>Drawing No.</label>
       <input class="rp-inp" id="tbDraw" placeholder="Drawing No." value="${esc(t.drawingNo)}"></div>""",
-"""    <div class="grp"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label>
-      <input class="rp-inp" id="tbDraw" placeholder="PRJ-VER-PRT-XX" value="${esc(t.drawingNo)}"></div>""")
+"""    <div class="grp"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part (Title) -Part Version_Sub Version"></i></label>
+      <input class="rp-inp" id="tbDraw" placeholder="PRJ-VER-PRT-PV_SV" value="${esc(t.drawingNo)}"></div>""")
 
 rep("""<div class="f-field"><label>Drawing No.</label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>""",
-    """<div class="f-field"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>""")
+    """<div class="f-field"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part (Title) -Part Version_Sub Version"></i></label><input class="inp2" disabled placeholder="PRJ-VER-PRT-PV_SV"></div>""")
 
 # ---- the defaults panel locks what belongs to one drawing ------------------
 # The gear on the dashboard edits what the NEXT project starts from. Project,
@@ -2777,6 +2777,37 @@ rep("""  $('#formatView').classList.remove('hide');
 rep("""  fmtDraft=null; fmtEditingDefaults=false;""",
 """  fmtDraft=null; fmtEditingDefaults=false;
   { const bc=$('#btnCreate'); if(bc) bc.style.display=''; }""")
+
+# ---- the company's name, spelled the way the company spells it -------------
+# "General Magick" was a typo, and it had already been saved into every project
+# made before it was noticed, plus whatever is in the saved defaults. Correcting
+# the default alone would leave the old spelling on the drawings that already
+# carry it, so the k is taken out wherever it is found - and ONLY the k, so a
+# company name somebody has typed for themselves is never touched.
+rep("    docType:'WORKING DRAWINGS', company:'General Magick (Thailand) Co., LTD',",
+    "    docType:'WORKING DRAWINGS', company:'General Magic (Thailand) Co., LTD',")
+rep("function blankFormat(){\n  const f=factoryFormat(), d=loadDefaultFormat();",
+"""/* The one name that was misspelled, corrected wherever it was saved. Narrow on
+   purpose: matching "Magick" anywhere would have renamed a company somebody typed
+   for themselves - "Acme Magick Works" became "Acme Magic Works" the first time
+   this was written, which is not a typo to fix, it is somebody's name. */
+function fixCompanySpelling(f){
+  if(f && typeof f.company==='string' && f.company.indexOf('General Magick')>=0){
+    f.company=f.company.replace(/General Magick/g,'General Magic'); return true; }
+  return false;
+}
+function blankFormat(){
+  const f=factoryFormat(), d=loadDefaultFormat();
+  fixCompanySpelling(d);""")
+rep("""  if(store.format){ const fm=frameMargin(store.format.paper);""",
+"""  if(fixCompanySpelling(store.format)) persist();
+  if(store.format){ const fm=frameMargin(store.format.paper);""")
+
+# ---- the drawing number's pattern, as the office writes it ------------------
+# The placeholder is what a person sees before they type, so it has to be the real
+# shape of the thing - down to the revision on the end.
+rep("  LB(FX.part,FY.b1,'DRAWING NO.');VAL(FX.part,FX.logo,FY.b1,FY.b2,t.drawingNo||'PRJ-VER-PRT-XX',2.24,true);",
+    "  LB(FX.part,FY.b1,'DRAWING NO.');VAL(FX.part,FX.logo,FY.b1,FY.b2,t.drawingNo||'PRJ-VER-PRT-PV_SV',2.24,true);")
 
 open(DST,'w').write(s)
 print('patched ok')

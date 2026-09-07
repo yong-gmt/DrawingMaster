@@ -13,13 +13,17 @@ const {open,loadDxf}=require('./harness');
     const out=[];
     (P.dxf.dims||[]).filter(m=>m.kind==='angular').forEach(m=>{
       const g=h.dimGeomOf(m);
-      let txt=null, arc=null, ext=0;
+      let txt=null, arc=null, ext=0, leftovers=0;
       (P.objects||[]).forEach(o=>{
         const dx=o.dx||0, dy=o.dy||0;
         (o.prims.polys||[]).forEach(p=>{
           if(p._dim!==m.id) return;
           if(p._role==='arc') arc=(p.pts||[]).map(q=>[q[0]+dx,q[1]+dy]);
           if(/^ext/.test(p._role||'') && (p.pts||[]).length) ext++;
+          /* A stroke with no role of ours is one the FILE drew. After STYLIZE has
+             taken the dimension over there must be none left, or the drawing
+             carries the old arc underneath the new one. */
+          if(!p._role && (p.pts||[]).length) leftovers++;
         });
         (o.prims.texts||[]).forEach(t=>{ if(t._dim===m.id)
           txt={s:String(t.text), at:[t.x+dx, t.y+dy], h:+t.h.toFixed(2)}; });
@@ -57,6 +61,7 @@ const {open,loadDxf}=require('./harness');
         hasDegreeSign: !!(txt && /\u00b0$/.test(txt.s)),
         arcOffRadiusMM:+worst.toFixed(4),
         extensionLines:ext,
+        theFilesOwnStrokesLeftBehind:leftovers,
         arrowheads:(arc? 2:0),
         valueOffTheArcMiddleMM:offMiddle==null? null : +offMiddle.toFixed(2)
       });
@@ -82,7 +87,8 @@ const {open,loadDxf}=require('./harness');
     console.log('angle stated', x.degrees+'\u00b0 · drawn as', JSON.stringify(x.value));
     console.log('  degree sign:', x.hasDegreeSign,
                 '· arc off its radius:', x.arcOffRadiusMM, 'mm',
-                '· extension lines:', x.extensionLines);
+                '· extension lines:', x.extensionLines,
+                '· the file’s old strokes left behind:', x.theFilesOwnStrokesLeftBehind);
     console.log('  the value leans', x.textLeanDeg+'\u00b0 · the arc there runs at',
                 x.tangentThereDeg+'\u00b0 ->',
                 Math.abs(x.textLeanDeg-x.tangentThereDeg)<0.01? 'it follows the arc' : 'IT DOES NOT FOLLOW',

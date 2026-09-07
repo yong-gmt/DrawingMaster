@@ -8100,8 +8100,18 @@ function factoryFormat(){
 /* A new project starts from the saved defaults where there are any, and from the
    factory settings where there are not. The two are merged rather than swapped,
    so a defaults file written by an older build still gets any new field. */
+/* The one name that was misspelled, corrected wherever it was saved. Narrow on
+   purpose: matching "Magick" anywhere would have renamed a company somebody typed
+   for themselves - "Acme Magick Works" became "Acme Magic Works" the first time
+   this was written, which is not a typo to fix, it is somebody's name. */
+function fixCompanySpelling(f){
+  if(f && typeof f.company==='string' && f.company.indexOf('General Magick')>=0){
+    f.company=f.company.replace(/General Magick/g,'General Magic'); return true; }
+  return false;
+}
 function blankFormat(){
   const f=factoryFormat(), d=loadDefaultFormat();
+  fixCompanySpelling(d);
   if(!d) return f;
   const out=Object.assign({}, f, d);
   out.approvals=Object.assign({}, f.approvals, d.approvals||{});
@@ -10181,9 +10191,14 @@ function dimAngularGeom(m){
   [0,1].forEach(i=>{
     if(!m.ext.visible[i]) return;
     const a=(i===0?a0:a0+sw);
-    const p=m.ends[i];
-    const d=Math.hypot(p[0]-C[0], p[1]-C[1]);
-    const from=Math.min(d, r) + (m.ext.gap[i]||0);
+    /* From the corner out to just past the arc. Starting where the model thinks
+       the side ENDS looked more careful and was wrong twice over: the points a
+       DIMENSION entity names are not always on the visible edge - on a real sheet
+       they ran half as far again as the arc - so the line was cut to a 1.5 mm stub
+       floating in space, touching neither the part nor anything else. An extension
+       line is the side of the angle, extended; drawing it from the vertex draws it
+       along the side it belongs to and can never fail to reach. */
+    const from=(m.ext.gap[i]||0);
     const to=r + (m.ext.overshoot[i]||0);
     if(to<=from) return;
     const u=[Math.cos(a), Math.sin(a)];
@@ -10434,17 +10449,43 @@ function v2DimAngular(e, T, mm, id, raw){
   if(!R1 || !R2) return null;
   const apA=ang(AP);
   const norm=(t)=>{ while(t<0) t+=2*Math.PI; while(t>=2*Math.PI) t-=2*Math.PI; return t; };
-  /* The drawing STATES its own angle. Four pairings of rays are possible and the
-     arc point is only a hint about which one is meant - a hint that reads 105 as
-     285 when the arc point sits where both pairings can claim it. The printed
-     number is not a hint: it is what the file says the angle is, and it settles
-     the question. Nothing is invented - a candidate has to AGREE with the file to
-     win this way, and when the file prints no number this is skipped entirely and
-     the old rules decide exactly as they did before. */
+  /* WHICH of the four pairings of rays the dimension means.
+     The strongest evidence is the arc the file DREW: every stroke of it lies on
+     this radius, so the angles of those points say where the arc runs and how far.
+     A pairing that does not cover them is not the one on the paper - which is how
+     105 came back drawn on the wrong side of the corner, as its own mirror image,
+     while measuring a perfectly correct 105 degrees.
+     The arc POINT the entity carries is a single point and cannot tell a sweep
+     from a sweep three times its size, so it is kept only for the files that drew
+     no arc at all. */
+  const drawnA=[];
+  const rTol=Math.max(0.35, r*0.02);
+  (raw.polys||[]).forEach(p=>(p.pts||[]).forEach(q=>{
+    if(Math.abs(Math.hypot(q[0]-V[0], q[1]-V[1]) - r) < rTol) drawnA.push(ang(q)); }));
+  /* what fraction of the drawn arc a candidate sweep contains */
+  /* The span the drawn strokes occupy: sort their angles, find the widest gap,
+     and what is left is the arc. Its MIDDLE is the useful part - it says which
+     side of the corner the dimension stands on, which is the whole question, and
+     it is not thrown off by the little stubs a drawing runs past the arrowheads
+     when the value sits outside. */
+  const drawnSpan=(()=>{
+    if(drawnA.length<3) return null;
+    const A=drawnA.map(norm).sort((x,y)=>x-y);
+    let gap=A[0]+2*Math.PI-A[A.length-1], at=0;
+    for(let i=1;i<A.length;i++){ const gp=A[i]-A[i-1]; if(gp>gap){ gap=gp; at=i; } }
+    const start=A[at], extent=2*Math.PI-gap;
+    return {mid:norm(start+extent/2), extent};
+  })();
+  /* how far a candidate's middle is from the drawn arc's middle */
+  const offMid=(s0c,d0)=>{
+    if(!drawnSpan) return null;
+    let t=Math.abs(norm(s0c+d0/2) - drawnSpan.mid) % (2*Math.PI);
+    return (t>Math.PI)? 2*Math.PI-t : t;
+  };
   const t0=(raw.texts||[])[0];
   const printed=t0? String(t0.text==null?'':t0.text).replace(/%%[dD]/g,'').replace(/°/g,'').trim() : '';
   const printedNum=printed? statedNumber(printed) : null;
-  let best=null, agreed=null;
+  let drawnBest=null, best=null;
   R1.forEach(r1=>R2.forEach(r2=>{
     const s0c=r1.a, s1c=r2.a;
     /* Only rays the drawing supports. Allowing the opposite of a drawn ray let a
@@ -10454,32 +10495,35 @@ function v2DimAngular(e, T, mm, id, raw){
     [1,-1].forEach(dirSign=>{
       let d0=norm((s1c-s0c)*dirSign)*dirSign;         /* signed sweep that way round */
       if(Math.abs(d0)<1e-9) return;
-      /* Does this pairing give the angle the drawing printed? */
-      if(printedNum!=null && statesValue(printed, Math.abs(d0)*180/Math.PI)){
-        if(!agreed || sup>agreed.sup) agreed={s0:s0c, d:d0, sup};
+      const agrees = printedNum!=null && statesValue(printed, Math.abs(d0)*180/Math.PI);
+      /* ---- the arc that is actually on the paper ---- */
+      const off=offMid(s0c,d0);
+      if(off!=null){
+        /* The side first - a mirror image measures the same angle and stands on
+           the wrong side of the part - and then the closest extent, so a 338 that
+           wraps the long way round loses to the 22 that was drawn. */
+        const ext=Math.abs(Math.abs(d0)-drawnSpan.extent);
+        const better = !drawnBest ||
+                       (off < drawnBest.off - 1e-6) ||
+                       (Math.abs(off-drawnBest.off)<=1e-6 && ext < drawnBest.ext);
+        if(better) drawnBest={s0:s0c, d:d0, sup, off, ext, agrees};
         return;
       }
+      /* ---- no arc was drawn: fall back to the single arc point ---- */
       const t=norm((apA-s0c)*dirSign);
       if(t>Math.abs(d0)+1e-6) return;                 /* the arc point is not on it */
-      /* Which sweep does the arc point BELONG to? The one it sits in the middle of.
-         Preferring the smallest sweep instead read a 240 degree angle as its 120
-         degree remainder, because the point sat exactly on that one's end and
-         counted as inside both. Distance from the middle has no such tie. */
-      /* Two signals, and each alone gets a case wrong. "Smallest sweep" read a
-         reflex angle as its remainder, because the arc point sat exactly on the
-         short sweep's end and counted as inside both. "Nearest the middle" then
-         read a real 22 degree angle as 338, because on that drawing the point sits
-         a little off centre and the huge sweep's middle happened to be closer in
-         proportion. So: a point sitting ON an end is not really inside that sweep -
-         require it clear of both ends - and among what is left take the smallest. */
       const frac=t/Math.abs(d0);
       if(frac<0.02 || frac>0.98) return;              /* sitting on an end is not inside */
-      const better = !best || sup>best.sup ||
-                     (sup===best.sup && Math.abs(d0)<Math.abs(best.d));
-      if(better) best={s0:s0c, d:d0, sup};
+      const better = !best || (agrees && !best.agrees) ||
+                     (agrees===best.agrees && (sup>best.sup ||
+                      (sup===best.sup && Math.abs(d0)<Math.abs(best.d))));
+      if(better) best={s0:s0c, d:d0, sup, agrees};
     });
   }));
-  best = agreed || best;                            /* what the file says outranks the hint */
+  /* The drawn arc decides when there is one; otherwise the arc point does. The
+     VALUE is quoted from the file either way, so choosing on geometry here costs
+     nothing and gets the picture right. */
+  if(drawnBest) best=drawnBest;
   if(!best) return null;
   const s0=best.s0, d=best.d;
   /* Where each SIDE of the angle actually reaches, measured along its own ray.
@@ -13406,7 +13450,7 @@ function drawTitleBlock(page){
   LB(FX.tol,FY.b1,'SIZE');        VAL(FX.tol,FX.size,FY.b1,FY.b2,f.paper,2.24,true);
   LB(FX.size,FY.b1,'VERSION');    VAL(FX.size,FX.ver,FY.b1,FY.b2,t.version||f.version||'VER.',2.24,true);
   LB(FX.ver,FY.b1,'PART NO.');    VAL(FX.ver,FX.part,FY.b1,FY.b2,t.partNo||'NO.',2.24,true);
-  LB(FX.part,FY.b1,'DRAWING NO.');VAL(FX.part,FX.logo,FY.b1,FY.b2,t.drawingNo||'PRJ-VER-PRT-XX',2.24,true);
+  LB(FX.part,FY.b1,'DRAWING NO.');VAL(FX.part,FX.logo,FY.b1,FY.b2,t.drawingNo||'PRJ-VER-PRT-PV_SV',2.24,true);
   LB(FX.tol,FY.b2,'MATERIAL');    VAL(FX.tol,FX.mat,FY.b2,1,t.material||'MATERIAL',2.24,true);
   LB(FX.mat,FY.b2,'FINISH');      VAL(FX.mat,FX.part,FY.b2,1,t.finish||'FINISH',2.24,true);
   LB(FX.part,FY.b2,'COLOR');      VAL(FX.part,FX.col,FY.b2,1,t.color||'COLOR',2.24,true);
@@ -13534,8 +13578,8 @@ function openTitlePanel(){
       <div><label>Part No.</label><input class="rp-inp" id="tbPart" placeholder="No." value="${esc(t.partNo)}"></div>
       <div><label>Version</label><input class="rp-inp" id="tbVer" placeholder="Version" value="${esc(t.version||f.version||'')}"></div>
     </div>
-    <div class="grp"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label>
-      <input class="rp-inp" id="tbDraw" placeholder="PRJ-VER-PRT-XX" value="${esc(t.drawingNo)}"></div>
+    <div class="grp"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part (Title) -Part Version_Sub Version"></i></label>
+      <input class="rp-inp" id="tbDraw" placeholder="PRJ-VER-PRT-PV_SV" value="${esc(t.drawingNo)}"></div>
     <div class="grp row2">
       <div><label>Scale</label><div class="scalerow">
         <input class="rp-inp" id="tbScale1" value="${esc(sc[0]||'1')}">
@@ -13750,24 +13794,32 @@ function stylizeScan(pg){
    stroke that entity drew carries its id; the other was rebuilt from loose
    geometry and keeps a list of the pieces it claimed. A tag is the more reliable
    of the two, because indices shift and tags do not. */
+/* Take one model's strokes over: the file's pieces come out, the model's go in.
+   Pulled out of the loop below because a drag needs it too - an angular dimension
+   keeps the file's picture until somebody moves it, and at that moment it has to
+   become the model's, or the model would draw a second arc beside the first. */
+function dimAdoptOne(pg, m){
+  const d=pg&&pg.dxf; if(!d||!m) return false;
+  let raw;
+  if(m.refs) raw=v2RecoverRaw(d, m);
+  else {
+    raw={polys:[], solids:[], texts:[], idx:{polys:[],solids:[],texts:[]}};
+    (d.polys||[]).forEach(p=>{ if(p._dim===m.id) raw.polys.push(p); });
+    (d.solids||[]).forEach(x=>{ if(x._dim===m.id) raw.solids.push(x); });
+    (d.texts||[]).forEach(t=>{ if(t._dim===m.id) raw.texts.push(t); });
+  }
+  const built=dimProject(m, raw.polys[0]||{}, raw.texts);
+  v2RecoverReplace(d, m, raw, built);
+  m.pending=false;
+  return true;
+}
 function stylizeAdopt(pg){
   const d=pg&&pg.dxf; if(!d) return 0;
   let n=0;
   (d.dims||[]).forEach(m=>{
     if(!m.pending || !m.ok) return;
-    try{
-      let raw;
-      if(m.refs) raw=v2RecoverRaw(d, m);
-      else {
-        raw={polys:[], solids:[], texts:[], idx:{polys:[],solids:[],texts:[]}};
-        (d.polys||[]).forEach(p=>{ if(p._dim===m.id) raw.polys.push(p); });
-        (d.solids||[]).forEach(x=>{ if(x._dim===m.id) raw.solids.push(x); });
-        (d.texts||[]).forEach(t=>{ if(t._dim===m.id) raw.texts.push(t); });
-      }
-      const built=dimProject(m, raw.polys[0]||{}, raw.texts);
-      v2RecoverReplace(d, m, raw, built);
-      m.pending=false; n++;
-    }catch(err){ console.warn('could not adopt', m.id, err); m.pending=false; }
+    try{ if(dimAdoptOne(pg, m)) n++; }
+    catch(err){ console.warn('could not adopt', m.id, err); m.pending=false; }
   });
   (d.secs||[]).forEach(s=>{ if(s.ok) s.pending=false; });
   if(n){ v2RecoverSweep(d); buildObjects(pg); dimRelayout(pg); }
@@ -15191,7 +15243,7 @@ function renderFormatView(){
         <div class="f-field"><label>Title</label><input class="inp2" id="fTitle"${perDwg} placeholder="Title" value="${f.title||''}"></div>
       </div>
       <div class="g4">
-        <div class="f-field"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part(Title)-Number"></i></label><input class="inp2" disabled placeholder="PRJ-VER-PRT-XX"></div>
+        <div class="f-field"><label>Drawing No.<i class="bi bi-info-circle lab-info" title="Project-Version-Part (Title) -Part Version_Sub Version"></i></label><input class="inp2" disabled placeholder="PRJ-VER-PRT-PV_SV"></div>
         <div class="f-field"><label>Part No.</label><input class="inp2" disabled placeholder="No."></div>
         <div class="f-field"><label>Version</label><input class="inp2" id="fVersion"${perDwg} placeholder="Version" value="${f.version||''}"></div>
         <div class="f-field"><label>Scale</label>
@@ -15553,6 +15605,7 @@ function openProject(id){
       buildObjects(pg); dimRelayout(pg); secRelayout(pg); } }); persist();
       console.log('project brought up to date:', n, 'models'); }
   }catch(err){ console.warn('project migration failed', err); }
+  if(fixCompanySpelling(store.format)) persist();
   if(store.format){ const fm=frameMargin(store.format.paper);
     if(store.format.margin!==fm){ store.format.margin=fm; persist(); } }
   history={undo:[],redo:[]};
@@ -15861,8 +15914,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 07 Sep 09:33';
-       console.log('DrawingMaster — build 07 Sep 09:33'); }catch(e){}
+  try{ window.__build='build 07 Sep 13:31';
+       console.log('DrawingMaster — build 07 Sep 13:31'); }catch(e){}
   { const bs=$('#btnSpecial'); if(bs) bs.onclick=openSpecialMenu; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }

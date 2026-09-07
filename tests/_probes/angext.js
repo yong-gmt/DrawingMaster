@@ -11,7 +11,7 @@ const OUT=path.join(H.ROOT,'tests','out'); fs.mkdirSync(OUT,{recursive:true});
   await p.evaluate(()=>window.__hook().createProject()); await p.waitForTimeout(700);
   const sh=await p.$('text=Sheet 01'); if(sh&&await sh.isVisible()) await sh.click();
   await p.waitForTimeout(400);
-  await p.click('#btnImport'); await p.setInputFiles('#fileInput', H.fixture('angles.dxf'));
+  await p.click('#btnImport'); await p.setInputFiles('#fileInput', H.fixture(process.argv[2]||'angles.dxf'));
   await p.waitForTimeout(2000);
   await p.click('#btnStylize'); await p.waitForTimeout(2500);
   const r=await p.evaluate(()=>{ const h=window.__hook();
@@ -29,6 +29,27 @@ const OUT=path.join(H.ROOT,'tests','out'); fs.mkdirSync(OUT,{recursive:true});
     +'  arc r='+String(x.radius).padStart(7)
     +'  sides reach '+JSON.stringify(x.endDistances)
     +'  -> extension lines '+JSON.stringify(x.extLengths)+' mm'));
+  const drawnExt=await p.evaluate(()=>{ const h=window.__hook();
+    const pg=h.store.pages.find(x=>x.id===h.store.activeId);
+    const out=[];
+    (h.dimModels(pg)||[]).filter(m=>m.kind==='angular').forEach(m=>{
+      const C=m.centre;
+      const segs=[];
+      (pg.objects||[]).forEach(o=>(o.prims.polys||[]).forEach(q=>{
+        if(q._dim!==m.id || !/^ext/.test(q._role||'') || !q.pts.length) return;
+        const a=q.pts[0], b=q.pts[q.pts.length-1];
+        segs.push({len:+Math.hypot(b[0]-a[0],b[1]-a[1]).toFixed(2),
+                   fromR:+Math.hypot(a[0]-C[0],a[1]-C[1]).toFixed(2),
+                   toR:+Math.hypot(b[0]-C[0],b[1]-C[1]).toFixed(2)}); }));
+      out.push({r:+m.radius.toFixed(2),
+                sidesReach:(m.ends||[]).map(e=>+Math.hypot(e[0]-C[0],e[1]-C[1]).toFixed(2)),
+                ext:segs});
+    });
+    return out; });
+  console.log('what is actually drawn:');
+  drawnExt.forEach(x=>console.log('  arc r='+x.r+'  sides reach '+JSON.stringify(x.sidesReach)
+    +'  ext strokes '+JSON.stringify(x.ext)));
+
   /* Now the case in the screenshot: the arc stands well OUTSIDE the part, so the
      sides fall short of it and the extension lines have real work to do. Measure
      the strokes that get DRAWN, not the formula. */
