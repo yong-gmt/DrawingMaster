@@ -97,6 +97,30 @@ function stylizeApply(pg, txtH){
   secModelsOf(pg).forEach(s=>{ if(s.ok && secApply(pg, s, txtH)) secs++; });
   return {dims, secs};
 }
+/* The sheet changed size, so the arrowheads have to change with it. A drawing is
+   imported at whatever size its author drew - a part drawn on A4 and brought onto
+   an A3 sheet arrives with A4 arrowheads - and STYLIZE is what puts every head on
+   the sheet at the size that sheet asks for. Changing the paper afterwards left
+   the heads at the old size until somebody pressed the button again, which is a
+   drawing that quietly disagrees with its own settings.
+
+   Only annotation the program has already taken over is touched: a dimension
+   still pending is one the user has not asked us to restyle, and rule 3 says it
+   keeps the author's drawing until they do. Text sizes are left exactly as they
+   are - each model is handed back its own height, so only the heads move. */
+function stylizeArrowsForPaper(pg){
+  let n=0;
+  dimModelsOf(pg).forEach(m=>{
+    if(!m.ok || m.pending) return;
+    if(dimStylizeText(pg, m, m.text.h)) n++;
+  });
+  secModelsOf(pg).forEach(s=>{
+    if(!s.ok || s.pending) return;
+    const keep=(s.label && s.label.h)? s.label.h/SEC_LETTER_SCALE : null;
+    if(keep && secApply(pg, s, keep)) n++;
+  });
+  return n;
+}
 /* What is left that really looks like an unfinished dimension. A number on its own
    is not one: the sheet is full of numbers that measure nothing - zone letters,
    sheet counts, dates. What marks a number as a dimension we failed to build is an

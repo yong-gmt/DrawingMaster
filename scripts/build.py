@@ -2809,5 +2809,17 @@ rep("""  if(store.format){ const fm=frameMargin(store.format.paper);""",
 rep("  LB(FX.part,FY.b1,'DRAWING NO.');VAL(FX.part,FX.logo,FY.b1,FY.b2,t.drawingNo||'PRJ-VER-PRT-XX',2.24,true);",
     "  LB(FX.part,FY.b1,'DRAWING NO.');VAL(FX.part,FX.logo,FY.b1,FY.b2,t.drawingNo||'PRJ-VER-PRT-PV_SV',2.24,true);")
 
+# ---- change the paper, and the arrowheads change with it --------------------
+# Arrowhead size belongs to the SHEET, not to the file the drawing came from: a
+# part drawn on A4 and brought onto an A3 sheet gets A3 heads. That was applied
+# when STYLIZE ran, so changing the paper size afterwards left every head at the
+# old sheet's size until the button was pressed again.
+rep("""    const pj=fmtDraft.__project; delete fmtDraft.__project;
+    store.format=fmtDraft;""",
+"""    const pj=fmtDraft.__project; delete fmtDraft.__project;
+    const paperWas=store.format.paper;
+    store.format=fmtDraft;
+    if(fmtDraft.paper!==paperWas)
+      (store.pages||[]).forEach(p=>{ try{ stylizeArrowsForPaper(p); }catch(e){ console.warn('arrowheads not resized', e); } });""")
+
 open(DST,'w').write(s)
-print('patched ok')
