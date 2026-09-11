@@ -26,7 +26,7 @@ const {open,loadDxf}=require('./harness');
           if(!p._role && (p.pts||[]).length) leftovers++;
         });
         (o.prims.texts||[]).forEach(t=>{ if(t._dim===m.id)
-          txt={s:String(t.text), at:[t.x+dx, t.y+dy], h:+t.h.toFixed(2)}; });
+          txt={s:String(t.text), at:[t.x+dx, t.y+dy], h:+t.h.toFixed(2), rot:t.rot||0}; });
       });
       const C=m.centre, r0=m.radius;
       // every point of the arc must sit on the radius the file gave
@@ -44,15 +44,19 @@ const {open,loadDxf}=require('./harness');
       const capsOnArc=!!(g.segs[0].arrow && (g.segs[0].arrow.s||g.segs[0].arrow.e));
       const room=Math.abs(m.sweep)*m.radius;
       const need=h.dimTextWidth(txt? txt.s : '', m.text.h)+ (m.line.arrow||2.5)*2;
-      /* The value leans with the arc - square to the radius where it sits - and is
-         never turned so far that it has to be read upside down. */
+      /* The value leans with the arc - square to the radius where it sits - with
+         its BASE towards the arc. Read off the drawn text, not the model: folding
+         it "upright" turned it over half way round, so its top faced the arc and
+         the baseline-anchored number sank onto its own line. */
       const textA=(m.text.ta==null)? (m.a0+m.sweep/2) : m.text.ta;
-      let tan=(textA-Math.PI/2)*180/Math.PI;
-      tan=((tan%180)+180)%180; if(tan>90) tan-=180;
+      let tan=(textA-Math.PI/2); tan=Math.atan2(Math.sin(tan), Math.cos(tan))*180/Math.PI;
+      const rr=(txt? txt.rot : 0)*Math.PI/180, up=[-Math.sin(rr), Math.cos(rr)];
+      const d=txt? Math.hypot(txt.at[0]-C[0], txt.at[1]-C[1]) : 1;
+      const outw=txt? [(txt.at[0]-C[0])/d, (txt.at[1]-C[1])/d] : [0,0];
       out.push({
-        textLeanDeg: +g.text.rot.toFixed(2),
+        textLeanDeg: +(txt? txt.rot : NaN).toFixed(2),
         tangentThereDeg: +tan.toFixed(2),
-        neverUpsideDown: Math.abs(g.text.rot)<=90.001,
+        baseFacesArc: (up[0]*outw[0]+up[1]*outw[1]) > 0.999,
         arrowsOutside: stubs.length===2,
         arrowsPointBackIn: capsOnStubs && !capsOnArc,
         theValueWouldNotFitInside: room<need,
@@ -74,9 +78,16 @@ const {open,loadDxf}=require('./harness');
     const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
     const PX=h.mm2px(1), pick=(k)=>(P.dxf.dims||[]).find(x=>x.kind===k && x.ok);
     const A=pick('angular'), R=pick('radial'), L=pick('linear');
-    const ga=h.dimGeomOf(A);
-    return {angular:+(((Math.hypot(ga.text.x-A.centre[0], ga.text.y-A.centre[1])
-                        - A.radius - A.text.h/2))*PX).toFixed(2),
+    /* The angular value's clear space, from the DRAWN text: its baseline faces the
+       arc, so the gap is baseline-to-arc less whatever ink dips under the baseline,
+       at the print density every dimension's gap is set in. */
+    let T=null;
+    (P.objects||[]).forEach(o=>(o.prims.texts||[]).forEach(t=>{
+      if(t._dim===A.id) T={x:t.x+(o.dx||0), y:t.y+(o.dy||0), h:t.h, s:String(t.text)}; }));
+    const c=document.createElement('canvas').getContext('2d');
+    c.font='100px '+(h.store.format.font||'Arial')+',Arial';
+    const desc=T.h*Math.max(0, c.measureText(T.s).actualBoundingBoxDescent)/100;
+    return {angular:+((Math.hypot(T.x-A.centre[0], T.y-A.centre[1]) - A.radius - desc)*96/25.4).toFixed(2),
             radial:+(h.dimGeomOf(R).text.gapPx||4),
             linear:+(h.dimGeomOf(L).text.gapPx||4)};
   });
@@ -92,7 +103,7 @@ const {open,loadDxf}=require('./harness');
     console.log('  the value leans', x.textLeanDeg+'\u00b0 · the arc there runs at',
                 x.tangentThereDeg+'\u00b0 ->',
                 Math.abs(x.textLeanDeg-x.tangentThereDeg)<0.01? 'it follows the arc' : 'IT DOES NOT FOLLOW',
-                '· never upside down:', x.neverUpsideDown);
+                '· its base faces the arc:', x.baseFacesArc);
     console.log('  the value would not fit between the arrows:', x.theValueWouldNotFitInside,
                 '-> arrows outside:', x.arrowsOutside,
                 '· pointing back in:', x.arrowsPointBackIn);

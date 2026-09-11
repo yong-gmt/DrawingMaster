@@ -206,8 +206,7 @@ function updateDimModelDrag(wx,wy){
          other dimension keeps between its value and its line. Dropping the value
          near there snaps it back and hands the spacing to the model again, so it
          cannot be left a hair off centre or crowding the arc. */
-      const gapMM=(m.text.gapPx==null?DIM_TXT_GAP_PX:m.text.gapPx)/dimPxPerMM();
-      const homeA=m.a0+m.sweep/2, homeR=m.radius+(m.text.h||2.5)*0.5+gapMM;
+      const homeA=m.a0+m.sweep/2, homeR=dimArcTextR(m);
       const home=[C[0]+homeR*Math.cos(homeA), C[1]+homeR*Math.sin(homeA)];
       const snap=Math.max(1.5, (m.text.h||2.5)*0.9);
       if(Math.hypot(wx-home[0], wy-home[1])<=snap){

@@ -10105,13 +10105,23 @@ function dimCentreIsFar(m, C, run){
 /* an angle folded to 0..2pi */
 function normAngle(t){ while(t<0) t+=2*Math.PI; while(t>=2*Math.PI) t-=2*Math.PI; return t; }
 /* A value riding an arc leans with it: it stands square to the radius at the
-   point it sits on, which is the tangent there. Folded so it is never upside
-   down - a number that has to be read from below is a number nobody reads. */
+   point it sits on, which is the tangent there, with its BASE towards the arc.
+   It is not folded. Folding it to stay upright turned it over half way round, so
+   its top faced the arc instead of its base - and since a value is placed by its
+   baseline, the flipped number sank onto the very line it was meant to clear.
+   The value keeps the one relationship to its arc wherever it is dragged. */
 function dimArcTextRot(a){
-  let t=a - Math.PI/2;                      /* the tangent, in degrees below */
-  t=Math.atan2(Math.sin(t), Math.cos(t))*180/Math.PI;
-  if(t>90) t-=180; else if(t<-90) t+=180;
-  return t;
+  const t=a - Math.PI/2;                    /* the tangent, in degrees below */
+  return Math.atan2(Math.sin(t), Math.cos(t))*180/Math.PI;
+}
+/* How far from the centre the value's BASELINE sits: the arc, then the same clear
+   space every other dimension keeps, measured to the real ink - the rule
+   dimTextPlace uses for a straight line. The gap is a fixed number of pixels at
+   print density; dividing by the zoom instead made it whatever the zoom happened
+   to be when the dimension was last redrawn. */
+function dimArcTextR(m){
+  const gap=(m.text.gapPx==null?DIM_TXT_GAP_PX:m.text.gapPx)/dimPxPerMM();
+  return m.radius + gap + dimInk(m.text.h||2.5, dimValueText(m)).desc;
 }
 function dimAngularGeom(m){
   const C=m.centre, r=m.radius, a0=m.a0, sw=m.sweep;
@@ -10136,22 +10146,20 @@ function dimAngularGeom(m){
   const need=dimTextWidth(dimValueText(m), m.text.h||2.5) + (m.line.arrow||2.5)*2;
   const room=Math.abs(sw)*r;
   const ta=(m.text.ta==null)? null : m.text.ta;
-  /* how far the value sits beyond each end, going outwards */
-  const beyond=(a)=>{
-    if(a==null) return 0;
-    const t0=normAngle(a-a0)*(sw>=0?1:-1);
-    const t=(sw>=0)? normAngle(a-a0) : -normAngle(a0-a);
-    if(sw>=0) return (t> Math.abs(sw))? t-Math.abs(sw) : (t<0? -t : 0);
-    return 0;
-  };
-  const tOut=(()=>{
-    if(ta==null) return 0;
-    /* signed position of the value along the sweep, in the sweep's own direction */
-    let t=(ta-a0)/(sw||1);
-    if(t>1) return (t-1)*Math.abs(sw);
-    if(t<0) return -t*Math.abs(sw);
-    return 0;
-  })();
+  /* How far past each end the value sits, in radians. Measured from the MIDDLE of
+     the arc and wrapped to a half turn either way, so the nearer end is the one
+     it is past. Dividing the raw angle by the sweep did not wrap: a value dragged
+     just past one end, where atan2 jumps from +180 to -180, read as being most of
+     a turn past the OTHER end - and the arc ran round from there to meet it, all
+     but closing into a circle. */
+  const dir=(sw>=0)?1:-1, half=Math.abs(sw)/2;
+  let b0=0, b1=0;
+  if(ta!=null){
+    const d=(ta-(a0+sw/2))*dir;
+    const rel=Math.atan2(Math.sin(d), Math.cos(d));   /* + towards the far end */
+    b1=Math.max(0, rel-half); b0=Math.max(0, -rel-half);
+  }
+  const tOut=Math.max(b0, b1);
   /* Where the value has been PUT decides the form. Keeping the "no room" test
      alive after a drag meant the stubs could never be taken back: the value could
      be dragged home and the arrowheads stayed outside, with the arc still running
@@ -10170,21 +10178,19 @@ function dimAngularGeom(m){
     /* run the arc past each end: far enough for the arrowhead, and far enough to
        reach the value when it has been dragged out there */
     const stub=(m.line.arrow||2.5)*2.2;
-    const side=(sw>=0)?1:-1;
     past0=stub; past1=stub;
     if(ta!=null){
       /* How far past the end the value sits, as an ARC LENGTH - the same units as
          the stub, and the same units the sampler divides by the radius. Working in
          radians here and dividing by the radius again left the arc a fraction of
          the length it needed, so it never reached out under the value. */
-      const t=(ta-a0)/(sw||1);
       const halfText=dimTextWidth(dimValueText(m), m.text.h||2.5)/2;
-      if(t<0) past0=Math.max(stub, (-t)*Math.abs(sw)*r + halfText);
-      if(t>1) past1=Math.max(stub, (t-1)*Math.abs(sw)*r + halfText);
+      if(b0>0) past0=Math.max(stub, b0*r + halfText);
+      if(b1>0) past1=Math.max(stub, b1*r + halfText);
     }
     const cap={s:true, e:false, h:m.line.arrow, w:m.line.arrowW};
-    segs.push({role:'arcOut0', pts:sample(a0, a0-side*past0/r), arrow:cap});
-    segs.push({role:'arcOut1', pts:sample(a0+sw, a0+sw+side*past1/r), arrow:cap});
+    segs.push({role:'arcOut0', pts:sample(a0, a0-dir*past0/r), arrow:cap});
+    segs.push({role:'arcOut1', pts:sample(a0+sw, a0+sw+dir*past1/r), arrow:cap});
   }
   /* Extension lines reach from the measured line out past the arc. */
   const ext=[];
@@ -10212,8 +10218,10 @@ function dimAngularGeom(m){
   /* ta is an ANGLE once the value has been dragged; before that it sits on the
      middle of the arc. */
   const am=(m.text.ta==null)? (a0+sw*0.5) : m.text.ta;
-  const gap=(m.text.gapPx||DIM_TXT_GAP_PX)/(typeof view!=='undefined'&&view.s?view.s:1);
-  const rt=(m.text.tr!=null)? m.text.tr : (r + (m.text.h||2.5)*0.5 + gap);
+  /* The text is anchored by its baseline, and the baseline faces the arc, so the
+     baseline sits one clear space out. Adding half the text height on top put the
+     value further off its arc than any other dimension keeps its value. */
+  const rt=(m.text.tr!=null)? m.text.tr : dimArcTextR(m);
   const tp=[C[0]+rt*Math.cos(am), C[1]+rt*Math.sin(am)];
 
   /* The value rides the ARC. No elbow, no landing: the arc simply carries on and
@@ -14591,8 +14599,7 @@ function updateDimModelDrag(wx,wy){
          other dimension keeps between its value and its line. Dropping the value
          near there snaps it back and hands the spacing to the model again, so it
          cannot be left a hair off centre or crowding the arc. */
-      const gapMM=(m.text.gapPx==null?DIM_TXT_GAP_PX:m.text.gapPx)/dimPxPerMM();
-      const homeA=m.a0+m.sweep/2, homeR=m.radius+(m.text.h||2.5)*0.5+gapMM;
+      const homeA=m.a0+m.sweep/2, homeR=dimArcTextR(m);
       const home=[C[0]+homeR*Math.cos(homeA), C[1]+homeR*Math.sin(homeA)];
       const snap=Math.max(1.5, (m.text.h||2.5)*0.9);
       if(Math.hypot(wx-home[0], wy-home[1])<=snap){
@@ -15914,8 +15921,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 07 Sep 13:31';
-       console.log('DrawingMaster — build 07 Sep 13:31'); }catch(e){}
+  try{ window.__build='build 11 Sep 12:36';
+       console.log('DrawingMaster — build 11 Sep 12:36'); }catch(e){}
   { const bs=$('#btnSpecial'); if(bs) bs.onclick=openSpecialMenu; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }

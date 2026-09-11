@@ -138,6 +138,45 @@ const {open,loadDxf}=require('./harness');
     ride.shapes.every(s=>!/angLead|angLand/.test(s)));
   console.log('  the arc runs out under the value every time:',
     ride.covered.every(Boolean));
+  /* A value dragged just past ONE end must lengthen the arc at THAT end. Turned so
+     the arc straddles the +-180 degree seam, the old code read a value just past
+     the far end as most of a turn past the near one, and ran the arc round from
+     there to meet it - a closed circle instead of a short run-out. Every stroke is
+     summed as drawn. Last, because it turns the model to get there. */
+  const seam=await pg.evaluate(()=>{
+    const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
+    const m=(P.dxf.dims||[]).find(x=>x.kind==='angular');
+    const st=document.getElementById('stage'), rc=st.getBoundingClientRect();
+    const C=m.centre, out=[];
+    for(const a0 of [150, 170, -170]) for(const k of [1.4, -0.4]){
+      m.a0=a0*Math.PI/180; m.text.ta=null; m.text.tr=null;
+      h.setSelection((P.objects||[]).filter(o=>o._dim===m.id).map(o=>o.id));
+      const g=h.dimModelGrips(P).find(x=>x.kind==='angtext');
+      const a=m.a0+m.sweep*k, R=m.radius+8;
+      const A=h.W2S(g.at[0],g.at[1]), B=h.W2S(C[0]+R*Math.cos(a), C[1]+R*Math.sin(a));
+      const ev=(t,x,y)=>st.dispatchEvent(new MouseEvent(t,{bubbles:true,
+        clientX:Math.round(rc.left+x), clientY:Math.round(rc.top+y), button:0}));
+      ev('mousedown',A.x,A.y); ev('mousemove',B.x,B.y);
+      st.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));
+      const len={};
+      (P.objects||[]).forEach(o=>(o.prims.polys||[]).forEach(p=>{
+        if(p._dim!==m.id || !/^arc/.test(p._role||'') || !(p.pts||[]).length) return;
+        let s=0; for(let i=1;i<p.pts.length;i++){
+          const u=Math.atan2(p.pts[i-1][1]+(o.dy||0)-C[1], p.pts[i-1][0]+(o.dx||0)-C[0]);
+          const v=Math.atan2(p.pts[i][1]+(o.dy||0)-C[1],   p.pts[i][0]+(o.dx||0)-C[0]);
+          s+=Math.abs(Math.atan2(Math.sin(v-u), Math.cos(v-u))); }
+        len[p._role]=s*180/Math.PI; }));
+      const total=Object.values(len).reduce((x,y)=>x+y,0);
+      const grew=(k>1)? 'arcOut1' : 'arcOut0', other=(k>1)? 'arcOut0' : 'arcOut1';
+      out.push({a0, k, totalDeg:+total.toFixed(1),
+                rightEndGrew:(len[grew]||0) > (len[other]||0)});
+    }
+    return out;
+  });
+  console.log('arc across the seam, value dragged past one end:',
+    seam.map(s=>s.a0+'/'+s.k+' -> '+s.totalDeg+'°').join(' · '));
+  console.log('  never a closed circle:', seam.every(s=>s.totalDeg<300),
+              '· the end it was dragged past is the end that grew:', seam.every(s=>s.rightEndGrew));
   console.log('value dragged away :', JSON.stringify(home.away));
   console.log('value dragged home :', JSON.stringify(home.back));
   console.log('  snapped to the middle:', home.back.offCentreMM<0.05,
