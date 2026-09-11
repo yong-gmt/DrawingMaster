@@ -318,6 +318,11 @@ function drawDimModelGrips(pg){
 function dimStylizeText(pg, m, txtH){
   dimBake(pg, m);
   m.text.h=txtH;
+  /* One arrowhead size for every dimension on the sheet - the size the paper size
+     asks for - set before the form is decided, because the form asks whether the
+     value fits BETWEEN the two heads and has to be asked about the heads the
+     drawing will actually have. */
+  if(txtH){ const A=dimArrowFor(); m.line.arrow=A.h; m.line.arrowW=A.w; }
   if(m.kind==='radial'||m.kind==='diameter'){
     m.text.gapPx=DIM_TXT_GAP_PX; m.text.rot=0; m.text.align=1;
     m.land.off=null;                 // value back to the head of its own landing

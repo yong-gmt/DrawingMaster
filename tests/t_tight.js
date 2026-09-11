@@ -62,7 +62,7 @@ const fs=require('fs');
       h.zoomRect(c[0]-9,c[1]-9,c[0]+9,c[1]+9);
     }, r.id);
     await pg.waitForTimeout(300);
-    fs.writeFileSync('tight.png', await pg.locator('canvas').first().screenshot());
+    fs.writeFileSync(require('./harness').out('tight.png'), await pg.locator('canvas').first().screenshot());
   }
   await b.close();
 })();

@@ -62,7 +62,7 @@ const path=require('path'), fs=require('fs'), {execSync}=require('child_process'
   console.log('   still bold, upper and +2pt:',
     after.labels.every(x=>x.bold && x.t===x.t.toUpperCase() && Math.abs(x.h-wantAfter)<1e-3));
 
-  fs.writeFileSync('addtext.png', await page.locator('canvas').first().screenshot());
+  fs.writeFileSync(require('./harness').out('addtext.png'), await page.locator('canvas').first().screenshot());
   await page.click('#btnExport'); await page.waitForTimeout(400);
   const dl=page.waitForEvent('download',{timeout:15000});
   const it=await page.$('[data-x="dxf"]'); if(it) await it.click();

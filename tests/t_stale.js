@@ -44,7 +44,7 @@ const path=require('path'), fs=require('fs');
   await page.evaluate(()=>{ window.__hook().store.format.decimals=1; });
   await page.click('#btnStylize'); await page.waitForTimeout(1000);
   const r=await look('after STYLIZE (dec=1):');
-  fs.writeFileSync('stale.png', await page.locator('canvas').first().screenshot());
+  fs.writeFileSync(require('./harness').out('stale.png'), await page.locator('canvas').first().screenshot());
   const bad=(r.values||[]).filter(v=>/\d/.test(v) && !/\d+\.\d(?!\d)/.test(v));
   console.log('  values not following the decimals setting:', bad.length, bad);
   await b.close();

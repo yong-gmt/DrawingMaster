@@ -91,7 +91,7 @@ const path=require('path'), fs=require('fs'), {execSync}=require('child_process'
   console.log('dragging the circle   :', JSON.stringify(dragged.dragCircle));
 
   await page.click('#btnStylize'); await page.waitForTimeout(800);
-  fs.writeFileSync('balloon.png', await page.locator('canvas').first().screenshot());
+  fs.writeFileSync(require('./harness').out('balloon.png'), await page.locator('canvas').first().screenshot());
   await page.click('#btnExport'); await page.waitForTimeout(400);
   const dl=page.waitForEvent('download',{timeout:15000});
   const it=await page.$('[data-x="dxf"]'); if(it) await it.click();

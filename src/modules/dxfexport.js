@@ -251,8 +251,13 @@ function buildDXF(pg){
   g(0,'ENDTAB');
   g(0,'TABLE'); g(2,'DIMSTYLE'); g(70,1);
   g(0,'DIMSTYLE'); g(2,'ISO-DM'); g(70,0);
-  g(3,''); g(4,''); g(140,dxfNum(3.5)); g(141,dxfNum(2.5)); g(147,dxfNum(1.0));
-  g(41,dxfNum(2.5)); g(42,dxfNum(1.0)); g(44,dxfNum(2.5)); g(271,2); g(73,0); g(74,0); g(77,1);
+  /* The style states the sizes the page actually draws: the text height STYLIZE
+     gave every value (140) and the one arrowhead size that goes with it (41).
+     Both were written as fixed numbers, so a drawing exported at one text size
+     re-opened elsewhere with 3.5 mm text and 2.5 mm heads whatever it had. */
+  const _txt=dimStdTextMM(), _arr=dimArrowFor();
+  g(3,''); g(4,''); g(140,dxfNum(_txt)); g(141,dxfNum(2.5)); g(147,dxfNum(1.0));
+  g(41,dxfNum(_arr.h)); g(42,dxfNum(1.0)); g(44,dxfNum(2.5)); g(271,2); g(73,0); g(74,0); g(77,1);
   g(0,'ENDTAB');
   g(0,'ENDSEC');
 

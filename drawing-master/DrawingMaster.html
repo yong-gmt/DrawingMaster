@@ -8689,8 +8689,13 @@ function buildDXF(pg){
   g(0,'ENDTAB');
   g(0,'TABLE'); g(2,'DIMSTYLE'); g(70,1);
   g(0,'DIMSTYLE'); g(2,'ISO-DM'); g(70,0);
-  g(3,''); g(4,''); g(140,dxfNum(3.5)); g(141,dxfNum(2.5)); g(147,dxfNum(1.0));
-  g(41,dxfNum(2.5)); g(42,dxfNum(1.0)); g(44,dxfNum(2.5)); g(271,2); g(73,0); g(74,0); g(77,1);
+  /* The style states the sizes the page actually draws: the text height STYLIZE
+     gave every value (140) and the one arrowhead size that goes with it (41).
+     Both were written as fixed numbers, so a drawing exported at one text size
+     re-opened elsewhere with 3.5 mm text and 2.5 mm heads whatever it had. */
+  const _txt=dimStdTextMM(), _arr=dimArrowFor();
+  g(3,''); g(4,''); g(140,dxfNum(_txt)); g(141,dxfNum(2.5)); g(147,dxfNum(1.0));
+  g(41,dxfNum(_arr.h)); g(42,dxfNum(1.0)); g(44,dxfNum(2.5)); g(271,2); g(73,0); g(74,0); g(77,1);
   g(0,'ENDTAB');
   g(0,'ENDSEC');
 
@@ -9864,6 +9869,30 @@ const DIM_LW=0.5;
    was the mistake that made "0.000 mm off centre" look like a pass while the eye
    still saw the text sitting crooked. */
 const DIM_TXT_GAP_PX=4;
+/* ONE arrowhead size for the whole drawing, decided by the SHEET it is drawn on.
+   The size was measured from the file's own arrowheads instead, so a drawing made
+   on A4 arrived with 1.25 mm heads and one made on A3 with 2.5 mm - and a single
+   sheet could carry both, because its section markers were drawn at 3.5 mm while
+   its dimensions were at 2.5. The 3:1 proportion is the one the source files
+   already keep, measured at 2.98-3.01.
+   Only STYLIZE applies this: an imported drawing is still shown as its author
+   drew it. */
+const DIM_ARROW_RATIO=3;
+const DIM_ARROW_MM={A4:2.5, A3:2.5, A2:3.5};
+function dimArrowFor(){
+  let paper='A4';
+  try{ paper=(store.format && store.format.paper) || 'A4'; }catch(e){}
+  const h=DIM_ARROW_MM[paper] || DIM_ARROW_MM.A4;
+  return {h, w:h/DIM_ARROW_RATIO};
+}
+/* The text size STYLIZE gives every value, in mm - Format Config's font size in
+   points. Wanted here as well so the exported DIMSTYLE can state the same
+   arrowhead the page draws. */
+function dimStdTextMM(){
+  try{ const pt=(store.format.fontSize||20);
+    return pt*(typeof PT_TO_MM!=='undefined'? PT_TO_MM : 25.4/72); }
+  catch(e){ return 2.5; }
+}
 /* Cap height of the digits, asked of the font itself rather than assumed. */
 function dimCapHeight(h, str){
   try{
@@ -11268,6 +11297,12 @@ function secCoverCentreLine(pg, s){
 }
 function secApply(pg, s, txtH){
   if(txtH) s.label.h=txtH*SEC_LETTER_SCALE;      /* only STYLIZE resizes it */
+  /* The same arrowhead the dimensions get. A marker keeps the file's own head
+     until STYLIZE, and then joins the rest of the sheet: one sheet drawn with
+     2.5 mm dimension heads and 3.5 mm section heads is one sheet with two
+     arrowhead sizes on it. The LETTER stays the larger of the two - that is the
+     part ISO 128 draws bigger, not the head. */
+  if(txtH){ const A=dimArrowFor(); s.arrow.len=A.h; s.arrow.wid=A.w; }
   const g=secGeomOf(s);
   let host=null, line=null;
   const mine=[];
@@ -14711,6 +14746,11 @@ function drawDimModelGrips(pg){
 function dimStylizeText(pg, m, txtH){
   dimBake(pg, m);
   m.text.h=txtH;
+  /* One arrowhead size for every dimension on the sheet - the size the paper size
+     asks for - set before the form is decided, because the form asks whether the
+     value fits BETWEEN the two heads and has to be asked about the heads the
+     drawing will actually have. */
+  if(txtH){ const A=dimArrowFor(); m.line.arrow=A.h; m.line.arrowW=A.w; }
   if(m.kind==='radial'||m.kind==='diameter'){
     m.text.gapPx=DIM_TXT_GAP_PX; m.text.rot=0; m.text.align=1;
     m.land.off=null;                 // value back to the head of its own landing
@@ -15921,8 +15961,8 @@ function boot(){
   { const bt=$('#btnText'); if(bt) bt.onclick=addTextLabel; }
   // The build stamp, somewhere it can be checked without being in the way: the
   // console, and window.__build. The tab says the name of the program, nothing else.
-  try{ window.__build='build 11 Sep 12:36';
-       console.log('DrawingMaster — build 11 Sep 12:36'); }catch(e){}
+  try{ window.__build='build 11 Sep 14:17';
+       console.log('DrawingMaster — build 11 Sep 14:17'); }catch(e){}
   { const bs=$('#btnSpecial'); if(bs) bs.onclick=openSpecialMenu; }
   { const bb=$('#btnBom'); if(bb) bb.onclick=addBOM; }
   { const be=$('#btnExport'); if(be) be.onclick=openExportMenu; }

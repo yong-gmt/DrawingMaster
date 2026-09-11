@@ -19,6 +19,12 @@ function fixture(name){
   return path.resolve(name);
 }
 
+/* Everything a test writes goes to tests/out, never the project root. Pictures and
+   exported drawings are results, not source: left in the root they were committed
+   with every change and buried the files that matter. */
+const OUT_DIR = path.join(ROOT, 'tests', 'out');
+function out(name){ fs.mkdirSync(OUT_DIR, {recursive:true}); return path.join(OUT_DIR, name); }
+
 async function open(file){
   file = (!file || /DrawingMaster/.test(file)) ? APP : fixture(file);
   const b=await chromium.launch();
@@ -46,4 +52,4 @@ async function addSpecial(pg, what){
 }
 const addBalloon=(pg)=>addSpecial(pg,'balloon');
 const addPartition=(pg)=>addSpecial(pg,'partition');
-module.exports={open, loadDxf, fixture, APP, ROOT, addSpecial, addBalloon, addPartition};
+module.exports={open, loadDxf, fixture, out, APP, ROOT, addSpecial, addBalloon, addPartition};

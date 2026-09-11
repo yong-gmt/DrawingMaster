@@ -1,6 +1,6 @@
 const {chromium}=require('./_pw');
 const path=require('path'), fs=require('fs');
-const sharp=require('/home/claude/.npm-global/lib/node_modules/sharp');
+const sharp=require('sharp');
 // Does the drawing actually MOVE on screen when you drag it? Real mouse, and the
 // answer read off the pixels - not from which object id I guessed at.
 const diff=async(a,b)=>{
@@ -49,19 +49,19 @@ const diff=async(a,b)=>{
     const s=await p.evaluate((w)=>{ const h=window.__hook();
       const st=document.getElementById('stage'), rc=st.getBoundingClientRect();
       const A=h.W2S(w[0],w[1]); return {x:rc.left+A.x, y:rc.top+A.y}; }, w);
-    fs.writeFileSync('mv_a.png', await p.locator('canvas').first().screenshot());
+    fs.writeFileSync(require('./harness').out('mv_a.png'), await p.locator('canvas').first().screenshot());
     await p.mouse.move(s.x, s.y);
     await p.mouse.down();
     await p.mouse.move(s.x+40, s.y+28);
     await p.mouse.move(s.x+90, s.y+60);
     await p.mouse.up();
     await p.waitForTimeout(300);
-    fs.writeFileSync('mv_b.png', await p.locator('canvas').first().screenshot());
+    fs.writeFileSync(require('./harness').out('mv_b.png'), await p.locator('canvas').first().screenshot());
     const moved=await p.evaluate(()=>{
       const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
       return (P.objects||[]).filter(o=>(o.dx||0)||(o.dy||0)).length; });
     console.log(name+': objects with a new position:', moved,
-                '| pixels that changed:', await diff('mv_a.png','mv_b.png'));
+                '| pixels that changed:', await diff(require('./harness').out('mv_a.png'),require('./harness').out('mv_b.png')));
   }
   console.log('errors:', errs.length, errs.slice(0,2));
   await b.close();

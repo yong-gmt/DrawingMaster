@@ -27,13 +27,13 @@ e+=text('Border',40,180,2.5,'B'); e+=text('Border',40,60,2.5,'B');
 // (4) DECOY: two arrows the same way but with NO matching letters
 e+=line('Smart Centers',210,60,210,180);
 [[176],[64]].forEach(([y])=>{ e+=solid('Smart Centers',[[206,y+0.9],[210,y],[206,y-0.9]]); });
-fs.writeFileSync('classify_test.dxf',
+fs.writeFileSync(require('./harness').out('classify_test.dxf'),
   g(0,'SECTION')+g(2,'HEADER')+g(9,'$INSUNITS')+g(70,4)+g(0,'ENDSEC')
  +g(0,'SECTION')+g(2,'ENTITIES')+e+g(0,'ENDSEC')+g(0,'EOF'));
 
 (async()=>{
   const {b,pg}=await open(require('./harness').APP);
-  await loadDxf(pg,'classify_test.dxf');
+  await loadDxf(pg,require('./harness').out('classify_test.dxf'));
   const r=await pg.evaluate(()=>{
     const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
     return { sectionMarkersFound:(P.dxf.secs||[]).map(s=>s.letter),

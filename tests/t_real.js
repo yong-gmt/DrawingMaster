@@ -34,21 +34,21 @@ const path=require('path'), fs=require('fs');
   await p.setInputFiles('#fileInput', require('./harness').fixture('Head-back.dxf'));
   await p.waitForTimeout(2000);
   await look('after import     :');
-  fs.writeFileSync('real_1.png', await p.screenshot());
+  fs.writeFileSync(require('./harness').out('real_1.png'), await p.screenshot());
 
   // back to the dashboard, then RELOAD the page, then open the project again
   const back=await p.$('#btnBack'); if(back && await back.isVisible()) await back.click();
   else await p.evaluate(()=>window.__hook().goDashboard&&window.__hook().goDashboard());
   await p.waitForTimeout(800);
   await p.reload(); await p.waitForTimeout(1200);
-  fs.writeFileSync('real_2.png', await p.screenshot());
+  fs.writeFileSync(require('./harness').out('real_2.png'), await p.screenshot());
   const cards=await p.$$('text=Project 1');
   console.log('  project on the dashboard after a reload:', cards.length>0);
   if(cards.length){ await cards[0].click(); await p.waitForTimeout(1500);
     const sh2=await p.$('text=Sheet 01'); if(sh2&&await sh2.isVisible()) await sh2.click();
     await p.waitForTimeout(800);
     await look('after reopening  :');
-    fs.writeFileSync('real_3.png', await p.screenshot()); }
+    fs.writeFileSync(require('./harness').out('real_3.png'), await p.screenshot()); }
   console.log('  javascript errors:', errs.length);
   errs.slice(0,4).forEach(e=>console.log('    '+e));
   await b.close();

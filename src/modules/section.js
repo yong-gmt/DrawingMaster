@@ -420,6 +420,12 @@ function secCoverCentreLine(pg, s){
 }
 function secApply(pg, s, txtH){
   if(txtH) s.label.h=txtH*SEC_LETTER_SCALE;      /* only STYLIZE resizes it */
+  /* The same arrowhead the dimensions get. A marker keeps the file's own head
+     until STYLIZE, and then joins the rest of the sheet: one sheet drawn with
+     2.5 mm dimension heads and 3.5 mm section heads is one sheet with two
+     arrowhead sizes on it. The LETTER stays the larger of the two - that is the
+     part ISO 128 draws bigger, not the head. */
+  if(txtH){ const A=dimArrowFor(); s.arrow.len=A.h; s.arrow.wid=A.w; }
   const g=secGeomOf(s);
   let host=null, line=null;
   const mine=[];

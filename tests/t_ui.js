@@ -101,7 +101,7 @@ PY`).toString().trimEnd();
     await page.click('#btnStylize');
     await page.waitForTimeout(900);
     const after=await page.locator('canvas').first().screenshot();
-    fs.writeFileSync('ui_'+src+'_after.png', after);
+    fs.writeFileSync(require('./harness').out('ui_'+src+'_after.png'), after);
     const changed=Buffer.compare(before,after)!==0;
     // press it a second time: a person may, and nothing should move
     await page.click('#btnStylize');
@@ -164,7 +164,7 @@ PY`).toString().trimEnd();
                 errs2.length? ('ERRORS '+errs2[0]) : 'no errors',
                 '| ink on the page:', reread.canvasHasInk>5000? 'yes' : 'NOTHING DREW');
     console.log('    text that came back mangled :', mangled.length, mangled.slice(0,3));
-    fs.writeFileSync('ui_'+src+'_reopened.png',
+    fs.writeFileSync(require('./harness').out('ui_'+src+'_reopened.png'),
                      await p2.locator('canvas').first().screenshot());
     await ctx2.close();
     await ctx.close();

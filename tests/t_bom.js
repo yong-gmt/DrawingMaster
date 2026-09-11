@@ -62,7 +62,7 @@ const path=require('path'), fs=require('fs');
     const h=window.__hook(); return {selected:[...h.selIds], hasBom:!!h.store.pages
       .find(x=>x.id===h.store.activeId).bom}; });
   console.log('clicking the table selects it:', state.selected.includes('bom'), state.selected);
-  fs.writeFileSync('bom.png', await p.locator('canvas').first().screenshot());
+  fs.writeFileSync(require('./harness').out('bom.png'), await p.locator('canvas').first().screenshot());
 
   await p.keyboard.press('Delete'); await p.waitForTimeout(500);
   const after=await p.evaluate(()=>{

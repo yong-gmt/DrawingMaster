@@ -25,14 +25,14 @@ const fs=require('fs');
              spacingPx:Math.abs(s(0,0)[0]-s(3.175*Math.SQRT2,0)[0]) };
   });
   await pg.waitForTimeout(400);
-  fs.writeFileSync('al_'+tag+'.png', await pg.locator('canvas').first().screenshot());
-  fs.writeFileSync('al_'+tag+'.json', JSON.stringify(info));
+  fs.writeFileSync(require('./harness').out('al_'+tag+'.png'), await pg.locator('canvas').first().screenshot());
+  fs.writeFileSync(require('./harness').out('al_'+tag+'.json'), JSON.stringify(info));
   await b.close();
  }
- const sharp=require('/home/claude/.npm-global/lib/node_modules/sharp');
+ const sharp=require('sharp');
  for(const tag of ['old','new']){
-   const info=JSON.parse(fs.readFileSync('al_'+tag+'.json'));
-   const img=await sharp('al_'+tag+'.png').raw().toBuffer({resolveWithObject:true});
+   const info=JSON.parse(fs.readFileSync(require('./harness').out('al_'+tag+'.json')));
+   const img=await sharp(require('./harness').out('al_'+tag+'.png')).raw().toBuffer({resolveWithObject:true});
    const {width,channels}=img.info;
    const row=Math.round(info.scanY);
    const dark=(x)=>{ const i=(row*width+Math.round(x))*channels; return img.data[i]<140; };

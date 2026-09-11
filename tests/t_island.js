@@ -1,7 +1,7 @@
 const _p=require('path');
 const {open,loadDxf}=require('./harness');
 const fs=require('fs');
-const sharp=require('/home/claude/.npm-global/lib/node_modules/sharp');
+const sharp=require('sharp');
 // The hole in a hatched region must stay empty, and the ring around it must not.
 (async()=>{
  for(const [tag,file] of [['old',_p.join(require('./harness').ROOT,'src','base.html')],['new',require('./harness').APP]]){
@@ -23,8 +23,8 @@ const sharp=require('/home/claude/.npm-global/lib/node_modules/sharp');
              ring:p(O.a+1.5,O.b+1.5,O.c-1.5,I.b-1.5) };
   });
   await pg.waitForTimeout(400);
-  fs.writeFileSync('is_'+tag+'.png', await pg.locator('canvas').first().screenshot());
-  const ink=async(r)=>{ const im=await sharp('is_'+tag+'.png').extract(r).raw()
+  fs.writeFileSync(require('./harness').out('is_'+tag+'.png'), await pg.locator('canvas').first().screenshot());
+  const ink=async(r)=>{ const im=await sharp(require('./harness').out('is_'+tag+'.png')).extract(r).raw()
       .toBuffer({resolveWithObject:true});
     let n=0; const {width,height,channels}=im.info;
     for(let i=0;i<width*height;i++) if(im.data[i*channels]<140) n++;

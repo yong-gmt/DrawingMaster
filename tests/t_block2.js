@@ -1,6 +1,6 @@
 const {chromium}=require('./_pw');
 const path=require('path'), fs=require('fs');
-const sharp=require('/home/claude/.npm-global/lib/node_modules/sharp');
+const sharp=require('sharp');
 const diff=async(a,b)=>{
   const A=await sharp(a).raw().toBuffer({resolveWithObject:true});
   const B=await sharp(b).raw().toBuffer({resolveWithObject:true});
@@ -73,16 +73,16 @@ const diff=async(a,b)=>{
     const st=document.getElementById('stage'), rc=st.getBoundingClientRect();
     const A=h.W2S(m[0],m[1]); return {x:rc.left+A.x, y:rc.top+A.y}; }));
 
-  fs.writeFileSync('bk_a.png', await p.locator('canvas').first().screenshot());
+  fs.writeFileSync(require('./harness').out('bk_a.png'), await p.locator('canvas').first().screenshot());
   await p.mouse.move(at.x, at.y); await p.mouse.down();
   await p.mouse.move(at.x+50, at.y+35);
   await p.mouse.move(at.x+110, at.y+75);
   await p.mouse.up(); await p.waitForTimeout(300);
-  fs.writeFileSync('bk_b.png', await p.locator('canvas').first().screenshot());
+  fs.writeFileSync(require('./harness').out('bk_b.png'), await p.locator('canvas').first().screenshot());
   const moved=await p.evaluate(()=>{
     const h=window.__hook(), P=h.store.pages.find(x=>x.id===h.store.activeId);
     return (P.objects||[]).filter(o=>(o.dx||0)||(o.dy||0)).length; });
-  console.log('objects that moved:', moved, '| pixels changed:', await diff('bk_a.png','bk_b.png'));
+  console.log('objects that moved:', moved, '| pixels changed:', await diff(require('./harness').out('bk_a.png'),require('./harness').out('bk_b.png')));
   console.log('errors:', errs.length, errs.slice(0,2));
   await b.close();
 })();

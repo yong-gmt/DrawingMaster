@@ -10,11 +10,11 @@ const fs=require('fs'), {execSync}=require('child_process');
   await pg.evaluate(()=>document.querySelector('#btnStylize').click());
   const R=await pg.evaluate(()=>{ const h=window.__hook();
     return h.buildDXF(h.store.pages.find(x=>x.id===h.store.activeId)); });
-  fs.writeFileSync('ext_'+src, R.text);
+  fs.writeFileSync(require('./harness').out('exdim_'+src), R.text);
   await b.close();
   console.log(execSync(`python3 - <<'PY'
 import ezdxf, collections
-d=ezdxf.readfile(${JSON.stringify('ext_'+src)})
+d=ezdxf.readfile(${JSON.stringify(require('./harness').out('exdim_'+src))})
 want={0:2, 1:2, 3:1, 4:1}          # linear/aligned two arrows, radius/diameter one
 rows=[]
 for e in d.modelspace():

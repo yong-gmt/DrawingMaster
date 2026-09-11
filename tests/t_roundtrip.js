@@ -22,7 +22,7 @@ const fs=require('fs');
       return {R, dims};
     });
     R=out.R; before=out.dims;
-    fs.writeFileSync('rt_'+src, R.text);
+    fs.writeFileSync(require('./harness').out('rt_'+src), R.text);
     await b.close();
   }
   // 2. count what the file itself contains
@@ -35,7 +35,7 @@ const fs=require('fs');
   // 3. read it back in
   const {b,pg}=await open(require('./harness').APP);
   const errs=[]; pg.on('pageerror',e=>errs.push(String(e).slice(0,100)));
-  await loadDxf(pg,'rt_'+src);
+  await loadDxf(pg,require('./harness').out('rt_'+src));
   const after=await pg.evaluate(()=>{
     const h=window.__hook(); const P=h.store.pages.find(x=>x.id===h.store.activeId);
     const d=P.dxf;

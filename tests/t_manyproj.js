@@ -30,7 +30,7 @@ const path=require('path'), fs=require('fs');
   }
   console.log('now reload and open the first project, the way you would after a break');
   await p.reload(); await p.waitForTimeout(1500);
-  fs.writeFileSync('many_dash.png', await p.screenshot());
+  fs.writeFileSync(require('./harness').out('many_dash.png'), await p.screenshot());
   const cards=await p.$$('.card, [data-proj], .proj-card');
   const anyCard=await p.$('text=Project 1');
   if(anyCard){ await anyCard.click(); await p.waitForTimeout(1800);
@@ -49,6 +49,6 @@ const path=require('path'), fs=require('fs');
   console.log('after reopening:', JSON.stringify(r));
   console.log('javascript errors:', errs.length);
   errs.slice(0,4).forEach(e=>console.log('  '+e));
-  fs.writeFileSync('many_sheet.png', await p.screenshot());
+  fs.writeFileSync(require('./harness').out('many_sheet.png'), await p.screenshot());
   await b.close();
 })();

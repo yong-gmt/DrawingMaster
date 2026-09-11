@@ -1,6 +1,6 @@
 const {chromium}=require('./_pw');
 const path=require('path'), fs=require('fs');
-const sharp=require('/home/claude/.npm-global/lib/node_modules/sharp');
+const sharp=require('sharp');
 // "Bold" has to be visible, not just a flag. Draw the same words with and without
 // it and compare how much ink each one puts down.
 (async()=>{
@@ -31,7 +31,7 @@ const sharp=require('/home/claude/.npm-global/lib/node_modules/sharp');
     }, bold);
     await page.waitForTimeout(400);
     const png=await page.locator('canvas').first().screenshot();
-    fs.writeFileSync('bold_'+bold+'.png', png);
+    fs.writeFileSync(require('./harness').out('bold_'+bold+'.png'), png);
     const im=await sharp(png).raw().toBuffer({resolveWithObject:true});
     let n=0; const {width,height,channels}=im.info;
     for(let i=0;i<width*height;i++) if(im.data[i*channels]<140) n++;

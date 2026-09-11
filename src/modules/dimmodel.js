@@ -27,6 +27,30 @@ const DIM_LW=0.5;
    was the mistake that made "0.000 mm off centre" look like a pass while the eye
    still saw the text sitting crooked. */
 const DIM_TXT_GAP_PX=4;
+/* ONE arrowhead size for the whole drawing, decided by the SHEET it is drawn on.
+   The size was measured from the file's own arrowheads instead, so a drawing made
+   on A4 arrived with 1.25 mm heads and one made on A3 with 2.5 mm - and a single
+   sheet could carry both, because its section markers were drawn at 3.5 mm while
+   its dimensions were at 2.5. The 3:1 proportion is the one the source files
+   already keep, measured at 2.98-3.01.
+   Only STYLIZE applies this: an imported drawing is still shown as its author
+   drew it. */
+const DIM_ARROW_RATIO=3;
+const DIM_ARROW_MM={A4:2.5, A3:2.5, A2:3.5};
+function dimArrowFor(){
+  let paper='A4';
+  try{ paper=(store.format && store.format.paper) || 'A4'; }catch(e){}
+  const h=DIM_ARROW_MM[paper] || DIM_ARROW_MM.A4;
+  return {h, w:h/DIM_ARROW_RATIO};
+}
+/* The text size STYLIZE gives every value, in mm - Format Config's font size in
+   points. Wanted here as well so the exported DIMSTYLE can state the same
+   arrowhead the page draws. */
+function dimStdTextMM(){
+  try{ const pt=(store.format.fontSize||20);
+    return pt*(typeof PT_TO_MM!=='undefined'? PT_TO_MM : 25.4/72); }
+  catch(e){ return 2.5; }
+}
 /* Cap height of the digits, asked of the font itself rather than assumed. */
 function dimCapHeight(h, str){
   try{

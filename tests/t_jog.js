@@ -40,6 +40,6 @@ const fs=require('fs');
     h.zoomRect(Math.min(...xs)-8,Math.min(...ys)-8,Math.max(...xs)+8,Math.max(...ys)+8);
   });
   await pg.waitForTimeout(350);
-  fs.writeFileSync('jog.png', await pg.locator('canvas').first().screenshot());
+  fs.writeFileSync(require('./harness').out('jog.png'), await pg.locator('canvas').first().screenshot());
   await b.close();
 })();
